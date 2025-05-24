@@ -1,4 +1,4 @@
-import { components, deps, utils } from "../meta";
+import { components } from "../meta";
 
 const Home = () => <components.asite.page_wrap.PageWrap text="Home">
     <></>
