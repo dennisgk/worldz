@@ -3,13 +3,17 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.encoders import jsonable_encoder
 from fastapi import FastAPI
+
+from worldz import Worldz
 
 import pathlib
 
 def main():
     app = FastAPI()
+    worldz = Worldz()
 
     app.add_middleware(
         CORSMiddleware,
@@ -36,7 +40,11 @@ def main():
     def get_settings():
         return index()
     
-    uvicorn.run(app, host="0.0.0.0", port=19422)
+    @app.get("/api/worldz", response_class=JSONResponse)
+    def get_api_worldz():
+        return JSONResponse(jsonable_encoder(worldz.sectors))
+    
+    uvicorn.run(app, host="0.0.0.0", port=9000)
 
 if __name__ == "__main__":
     main()
