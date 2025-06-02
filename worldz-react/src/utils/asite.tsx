@@ -18,11 +18,7 @@ const match_path_only = (
 };
 
 const match_inner = (location: string) =>
-  match_path_only(
-    location,
-    "TAGS",
-    "SETTINGS"
-  );
+  match_path_only(location, "TAGS", "SETTINGS");
 
 const match_path = <TRet = any,>(
   location: string,
@@ -34,7 +30,8 @@ const match_path = <TRet = any,>(
       [
         [/^\/$/gm, "HOME"],
         [/^\/tags$/gm, "TAGS"],
-        [/^\/settings$/gm, "SETTINGS"]
+        [/^\/settings$/gm, "SETTINGS"],
+        [/^\/sector$/gm, "SECTOR"],
       ],
       "HOME"
     )
@@ -43,9 +40,4 @@ const match_path = <TRet = any,>(
 const PY_BACKEND = "http://localhost:19423";
 //const PY_BACKEND = "";
 
-export {
-  match_path,
-  match_path_only,
-  PY_BACKEND,
-  match_inner
-};
+export { match_path, match_path_only, PY_BACKEND, match_inner };

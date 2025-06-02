@@ -1,13 +1,13 @@
 import uvicorn
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.encoders import jsonable_encoder
 from fastapi import FastAPI
 
-from worldz import Worldz
+from worldz import Worldz, Sector
 
 import pathlib
 
@@ -42,8 +42,12 @@ def main():
     
     @app.get("/api/worldz", response_class=JSONResponse)
     def get_api_worldz():
-        return JSONResponse(jsonable_encoder(worldz.sectors))
+        return JSONResponse(jsonable_encoder(worldz.sectors, custom_encoder={Sector: lambda self: {"name": self.name}}))
     
+    @app.get("/api/sector", response_class=JSONResponse)
+    def get_api_sector(id: str = Query(...)):
+        return JSONResponse(jsonable_encoder(worldz.sectors[id], custom_encoder={Sector: lambda self: {"name": self.name, "objects": self.objects}}))
+
     uvicorn.run(app, host="0.0.0.0", port=19423)
 
 if __name__ == "__main__":

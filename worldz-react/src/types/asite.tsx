@@ -1,8 +1,3 @@
-type Page =
-  | "HOME"
-  | "TAGS"
-  | "SETTINGS"
+type Page = "HOME" | "TAGS" | "SETTINGS" | "SECTOR";
 
-export type {
-  Page
-}
+export type { Page };

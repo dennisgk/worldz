@@ -3,6 +3,7 @@ import { types, components, deps, utils } from "../../../meta";
 const Sidebar = (props: types.react.ElemChildrenProps) => {
   const fetching = deps.query.use_is_fetching();
   const mutating = deps.query.use_is_mutating();
+  const location = deps.router.use_location();
 
   const floating = deps.floating.use_floating({
     open: fetching + mutating > 0,
@@ -20,9 +21,13 @@ const Sidebar = (props: types.react.ElemChildrenProps) => {
         <components.layout.size_breakpoint.SizeBreakpoint
           def={<></>}
           md={
-            <components.layout.stack.Cell>
-              <components.asite.sidebar.Panel />
-            </components.layout.stack.Cell>
+            utils.asite.match_path_only(location.pathname, "SECTOR") ? (
+              <></>
+            ) : (
+              <components.layout.stack.Cell>
+                <components.asite.sidebar.Panel />
+              </components.layout.stack.Cell>
+            )
           }
         />
 
@@ -36,9 +41,13 @@ const Sidebar = (props: types.react.ElemChildrenProps) => {
 
             <components.layout.size_breakpoint.SizeBreakpoint
               def={
-                <components.layout.stack.Cell>
-                  <components.asite.sidebar.Panel />
-                </components.layout.stack.Cell>
+                utils.asite.match_path_only(location.pathname, "SECTOR") ? (
+                  <></>
+                ) : (
+                  <components.layout.stack.Cell>
+                    <components.asite.sidebar.Panel />
+                  </components.layout.stack.Cell>
+                )
               }
               md={<></>}
             />

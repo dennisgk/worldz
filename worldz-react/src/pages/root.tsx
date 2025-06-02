@@ -21,6 +21,10 @@ const Root = () => {
                       element={<pages.settings.Settings />}
                     />
                     <deps.router.Route
+                      path="/sector"
+                      element={<pages.sector.Sector />}
+                    />
+                    <deps.router.Route
                       path="*"
                       element={<deps.router.Navigate to="/" />}
                     />
