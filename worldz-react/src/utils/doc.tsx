@@ -27,6 +27,6 @@ const use_theme = () => {
 const is_mobile = () =>
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/gim.test(
     navigator.userAgent
-  ) || true;
+  );
 
 export { use_theme, is_mobile };

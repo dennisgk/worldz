@@ -5,7 +5,7 @@ import moment from "moment";
 import * as three from "three";
 import * as three_addons from "../deps/three_addons";
 import nipplejs from "nipplejs";
-import * as cannon from "cannon-es";
+import * as rapier from "@dimforge/rapier3d";
 
 export {
   router,
@@ -15,5 +15,5 @@ export {
   three,
   three_addons,
   nipplejs,
-  cannon,
+  rapier,
 };
