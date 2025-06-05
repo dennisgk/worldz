@@ -18,7 +18,7 @@ const create_player = (world: deps.rapier.World) => {
     radius
   )
     .setMass(1)
-    .setFriction(0.2)
+    .setFriction(1)
     .setRestitution(0);
 
   const collider = world.createCollider(colliderDesc, body);
@@ -80,11 +80,11 @@ const Sector = () => {
     const world = new deps.rapier.World(new deps.rapier.Vector3(0, -9.82, 0));
 
     // Ground
-    world
-      .createCollider(
-        deps.rapier.ColliderDesc.cuboid(50, 0.1, 50).setTranslation(0, 0, 0)
-      )
-      .setFriction(1);
+    const ground_collider = world.createCollider(
+      deps.rapier.ColliderDesc.cuboid(50, 0.1, 50).setTranslation(0, 0, 0)
+    );
+    ground_collider.setFriction(1);
+    ground_collider.setRestitution(0);
 
     // ground to three
     const groundGeo = new deps.three.PlaneGeometry(100, 100);
@@ -316,17 +316,11 @@ const Sector = () => {
 
       const dampedVel = new deps.rapier.Vector3(
         vel.x * (1 - damping * dt),
-        vel.y * (1 - damping_y * dt), // no damping on y
+        vel.y * (1 - damping_y * dt),
         vel.z * (1 - damping * dt)
       );
 
       player_body.body.setLinvel(dampedVel, true);
-
-      const velocity = player_body.body.linvel();
-      const vspeed = Math.sqrt(
-        velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2
-      );
-      console.log(`Speed: ${vspeed.toFixed(2)}`);
 
       world.step();
 
