@@ -60,6 +60,8 @@ const Sector = () => {
     // Create renderer
     const renderer = new deps.three.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = deps.three.PCFSoftShadowMap; // optional, but looks better
     mount_ref.current.appendChild(renderer.domElement);
 
     scene.add(new deps.three.HemisphereLight(0xffffff, 0x444444, 1));
@@ -67,12 +69,14 @@ const Sector = () => {
     // Light
     const light = new deps.three.DirectionalLight(0xffffff, 1);
     light.position.set(0, 10, 10);
+    light.castShadow = true;
     scene.add(light);
 
     // Add a cube
     const geometry = new deps.three.BoxGeometry();
     const material = new deps.three.MeshStandardMaterial({ color: 0x00ff00 });
     const cube = new deps.three.Mesh(geometry, material);
+    cube.castShadow = true;
     cube.position.set(0, 0.5, 0);
     scene.add(cube);
 
@@ -88,7 +92,7 @@ const Sector = () => {
 
     // ground to three
     const groundGeo = new deps.three.PlaneGeometry(100, 100);
-    const groundMat = new deps.three.ShaderMaterial({
+    /*const groundMat = new deps.three.ShaderMaterial({
       uniforms: {},
       vertexShader: `
     varying vec3 vWorldPosition;
@@ -99,28 +103,35 @@ const Sector = () => {
     }
   `,
       fragmentShader: `
-    varying vec3 vWorldPosition;
+  varying vec3 vWorldPosition;
 
-    float grid(vec2 coord, float size) {
-      vec2 g = abs(fract(coord / size - 0.5) - 0.5) / fwidth(coord / size);
-      return 1.0 - min(min(g.x, g.y), 1.0);
-    }
+  float grid(vec2 coord, float size) {
+    vec2 g = abs(fract(coord / size - 0.5) - 0.5) / fwidth(coord / size);
+    return 1.0 - min(min(g.x, g.y), 1.0);
+  }
 
-    void main() {
-      float g = grid(vWorldPosition.xz, 1.0); // grid cell size = 1.0 unit
-      vec3 baseColor = vec3(0.05);
-      vec3 lineColor = vec3(0.9);
-      vec3 color = mix(baseColor, lineColor, g);
+  void main() {
+    float g = grid(vWorldPosition.xz, 1.0); // grid cell size = 1.0
 
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `,
+    // Cool gradient based on radial distance
+    float dist = length(vWorldPosition.xz) * 0.05;
+    vec3 gradient = mix(vec3(0.2, 0.0, 0.5), vec3(0.0, 0.3, 0.6), smoothstep(0.0, 1.0, dist));
+
+    vec3 baseColor = gradient;          // gradient background
+    vec3 lineColor = vec3(0.9);         // grid lines
+    vec3 color = mix(baseColor, lineColor, g); // blend grid on top
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`,
       side: deps.three.DoubleSide,
-    });
+    });*/
+    const groundMat = new deps.three.MeshStandardMaterial({color: 0x00FF00});
 
     const groundMesh = new deps.three.Mesh(groundGeo, groundMat);
     groundMesh.position.set(0, 0, 0);
     groundMesh.rotation.set(Math.PI / 2, 0, 0);
+    groundMesh.receiveShadow = true;
     scene.add(groundMesh);
 
     // Player capsule
@@ -171,22 +182,22 @@ const Sector = () => {
       e.code === "KeyW"
         ? (move.forward = 1)
         : e.code === "KeyS"
-        ? (move.backward = 1)
-        : e.code === "KeyA"
-        ? (move.left = 1)
-        : e.code === "KeyD"
-        ? (move.right = 1)
-        : undefined;
+          ? (move.backward = 1)
+          : e.code === "KeyA"
+            ? (move.left = 1)
+            : e.code === "KeyD"
+              ? (move.right = 1)
+              : undefined;
     const onKeyUp = (e: KeyboardEvent) =>
       e.code === "KeyW"
         ? (move.forward = 0)
         : e.code === "KeyS"
-        ? (move.backward = 0)
-        : e.code === "KeyA"
-        ? (move.left = 0)
-        : e.code === "KeyD"
-        ? (move.right = 0)
-        : undefined;
+          ? (move.backward = 0)
+          : e.code === "KeyA"
+            ? (move.left = 0)
+            : e.code === "KeyD"
+              ? (move.right = 0)
+              : undefined;
     if (!utils.doc.is_mobile()) {
       window.addEventListener("keydown", onKeyDown);
       window.addEventListener("keyup", onKeyUp);
