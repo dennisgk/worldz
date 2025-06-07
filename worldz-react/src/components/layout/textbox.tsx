@@ -7,14 +7,22 @@ type TextboxProps = {
     | types.general.Handler<types.react.ChangeEvent<HTMLInputElement>>
     | undefined;
   placeholder?: string | undefined;
+  on_enter?: () => void | undefined;
   color?: types.layout.Color | undefined;
   size: types.layout.Size;
   password?: boolean | undefined;
   disabled?: boolean | undefined;
+  id?: string | undefined;
 };
 
 const Textbox = (props: TextboxProps) => {
   const level = utils.react.use_context(components.layout.level.Context);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && props.on_enter) {
+      props.on_enter();
+    }
+  };
 
   return (
     <input
@@ -35,7 +43,9 @@ const Textbox = (props: TextboxProps) => {
       value={props.value}
       defaultValue={props.default_value}
       onChange={props.on_change}
+      onKeyDown={handleKeyDown}
       disabled={props.disabled}
+      id={props.id}
       {...(props.password === true
         ? { type: "password", autoComplete: "on" }
         : { type: "text" })}

@@ -4,6 +4,7 @@ import * as react from "../utils/react";
 import * as general from "../utils/general";
 import * as layout from "../utils/layout";
 import * as asite from "../utils/asite";
+import * as sector from "../utils/sector";
 
 type ReplaceAt<
   T extends any[],
@@ -82,6 +83,24 @@ class PipeOut<T extends any[], TP extends PipeSync | PipeAsync> {
       }
     }
   }
+
+  nov(): TP extends PipeSync
+    ? void
+    : TP extends PipeAsync
+    ? Promise<void>
+    : never {
+    switch (this.#type) {
+      case "SYNC": {
+        this.#handler();
+        return undefined as any;
+      }
+      case "ASYNC": {
+        return (async () => {
+          await this.#handler();
+        })() as any;
+      }
+    }
+  }
 }
 
 class Pipe<T extends any[], TP extends PipeSync | PipeAsync> {
@@ -129,6 +148,24 @@ class Pipe<T extends any[], TP extends PipeSync | PipeAsync> {
         this.values[num] = await handler();
       },
     });
+    return this as any;
+  }
+
+  no(handler: () => void): Pipe<T, TP> {
+    this.#progression.push({
+      type: "SYNC",
+      handler: handler,
+    });
+
+    return this as any;
+  }
+
+  noa(handler: () => Promise<void>): Pipe<T, PipeAsync> {
+    this.#progression.push({
+      type: "ASYNC",
+      handler: handler,
+    });
+
     return this as any;
   }
 
@@ -254,4 +291,4 @@ const pipe = <T extends number>() => {
   return new Pipe<TupleOfUndefined<T>, PipeSync>();
 };
 
-export { doc, linq, react, general, layout, asite, pipe };
+export { doc, linq, react, general, layout, asite, pipe, sector };
