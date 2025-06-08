@@ -13,6 +13,7 @@ type TextboxProps = {
   password?: boolean | undefined;
   disabled?: boolean | undefined;
   id?: string | undefined;
+  font?: types.layout.Font | undefined;
 };
 
 const Textbox = (props: TextboxProps) => {
@@ -38,12 +39,13 @@ const Textbox = (props: TextboxProps) => {
           "FOCUS",
           components.layout.level.get_ascend(level)
         ),
+        utils.layout.match_font(props.font),
       ].join_class_name()}
       placeholder={props.placeholder}
       value={props.value}
       defaultValue={props.default_value}
       onChange={props.on_change}
-      onKeyDown={handleKeyDown}
+      onKeyDown={props.disabled ? undefined : handleKeyDown}
       disabled={props.disabled}
       id={props.id}
       {...(props.password === true

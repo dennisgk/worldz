@@ -1,4 +1,4 @@
-import { deps, utils } from "../meta";
+import { deps, types, utils } from "../meta";
 
 class Sector {
   #renderer: deps.three.WebGLRenderer;
@@ -6,14 +6,19 @@ class Sector {
   #controls: deps.three_addons.PointerLockControls;
   #camera: deps.three.PerspectiveCamera;
   speed_mult: number;
+  #cache: Map<string, deps.three.Group>;
+  #scene: deps.three.Scene;
 
   constructor(
     width: number,
     height: number,
     append_element: (elem: HTMLCanvasElement) => void
   ) {
+    // create cache
+    this.#cache = new Map<string, deps.three.Group>();
+
     // Create scene
-    const scene = new deps.three.Scene();
+    this.#scene = new deps.three.Scene();
 
     // Create camera
     this.#camera = new deps.three.PerspectiveCamera(
@@ -22,7 +27,6 @@ class Sector {
       0.1,
       1000
     );
-    this.#camera.position.set(0, 2, 5);
 
     if (utils.doc.is_mobile()) {
       // Portrait → rotate camera
@@ -38,19 +42,26 @@ class Sector {
     this.#renderer.setSize(width, height);
     append_element(this.#renderer.domElement);
 
-    scene.add(new deps.three.HemisphereLight(0xffffff, 0x444444, 1));
+    this.#scene.add(new deps.three.HemisphereLight(0xffffff, 0x444444, 1));
 
     // Light
     const light = new deps.three.DirectionalLight(0xffffff, 1);
-    light.position.set(0, 10, 10);
-    scene.add(light);
+    light.position.set(10, 10, 10);
+    this.#scene.add(light);
+
+    // Set the target to (0, 0, 0)
+    const target = new deps.three.Object3D();
+    target.position.set(0, 0, 0);
+    this.#scene.add(target);
+
+    light.target = target; // required to make .lookAt work
 
     // Add a cube
-    const geometry = new deps.three.BoxGeometry();
-    const material = new deps.three.MeshStandardMaterial({ color: 0x00ff00 });
-    const cube = new deps.three.Mesh(geometry, material);
-    cube.position.set(0, 0.5, 0);
-    scene.add(cube);
+    // const geometry = new deps.three.BoxGeometry();
+    // const material = new deps.three.MeshStandardMaterial({ color: 0x00ff00 });
+    // const cube = new deps.three.Mesh(geometry, material);
+    // cube.position.set(0, 0.5, 0);
+    // this.#scene.add(cube);
 
     // World
     const world = new deps.rapier.World(new deps.rapier.Vector3(0, -9.82, 0));
@@ -124,7 +135,7 @@ class Sector {
     const groundMesh = new deps.three.Mesh(groundGeo, groundMat);
     groundMesh.position.set(0, 0, 0);
     groundMesh.rotation.set(Math.PI / 2, 0, 0);
-    scene.add(groundMesh);
+    this.#scene.add(groundMesh);
 
     // Player capsule
     const player_body = this.#create_player(world);
@@ -216,9 +227,78 @@ class Sector {
         player_body.body.translation().z
       );
 
-      this.#renderer.render(scene, this.#camera);
+      this.#renderer.render(this.#scene, this.#camera);
     };
     animate();
+  }
+
+  async load(
+    folder: string,
+    name: string,
+    files: Array<string>,
+    model: types.sector.Model
+  ) {
+    let get_cached = async (
+      file: string,
+      loader: deps.three.Loader,
+      clone: (grp: deps.three.Group) => any
+    ) => {
+      let url = `${
+        utils.asite.PY_BACKEND
+      }/api/obj_file?folder=${encodeURIComponent(
+        folder
+      )}&name=${encodeURIComponent(name)}&file=${encodeURIComponent(file)}`;
+
+      if (!this.#cache.has(url)) {
+        await new Promise<void>((resolve, reject) =>
+          loader.load(
+            url,
+            (obj: any) => {
+              this.#cache.set(url, obj);
+              resolve();
+            },
+            undefined,
+            reject
+          )
+        );
+      }
+
+      return clone(this.#cache.get(url)!);
+    };
+
+    switch (model) {
+      case "GLTF_GLB": {
+        let loader = new deps.three_addons.GLTFLoader();
+        let cached = await get_cached(files[0], loader, (obj) =>
+          (obj as any).scene.clone(true)
+        );
+
+        this.#scene.add(cached);
+
+        return ["Loaded"];
+      }
+      case "FBX": {
+        let loader = new deps.three_addons.FBXLoader();
+        let cached = await get_cached(files[0], loader, (obj) => obj);
+
+        this.#scene.add(cached);
+
+        return ["Loaded"];
+      }
+      case "STL": {
+        let loader = new deps.three_addons.STLLoader();
+        let cached = await get_cached(files[0], loader, (obj) => obj);
+
+        let material = new deps.three.MeshStandardMaterial({ color: 0xffffff });
+        let mesh = new deps.three.Mesh(cached, material);
+
+        mesh.scale.set(0.01, 0.01, 0.01);
+
+        this.#scene.add(mesh);
+
+        return ["Loaded"];
+      }
+    }
   }
 
   deconstruct() {

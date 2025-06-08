@@ -9,6 +9,7 @@ type TextProps = types.react.RequiredChildrenProps & {
   float?: types.layout.Align | undefined;
   underline?: types.layout.Underline | undefined;
   word_break?: boolean | undefined;
+  font?: types.layout.Font | undefined;
 };
 
 const Text = (props: TextProps) => (
@@ -21,6 +22,7 @@ const Text = (props: TextProps) => (
       utils.layout.match_color(props.color),
       utils.layout.match_float(props.float),
       utils.layout.match_underline(props.underline),
+      utils.layout.match_font(props.font),
     ].join_class_name()}
     style={props.word_break === true ? { wordBreak: "break-word" } : undefined}
   >

@@ -1,3 +1,8 @@
-import { PointerLockControls } from "three/examples/jsm/Addons.js";
+import {
+  PointerLockControls,
+  GLTFLoader,
+  FBXLoader,
+  STLLoader,
+} from "three/examples/jsm/Addons.js";
 
-export { PointerLockControls };
+export { PointerLockControls, GLTFLoader, FBXLoader, STLLoader };

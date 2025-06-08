@@ -203,6 +203,13 @@ const match_underline = (underline: types.layout.Underline | undefined) =>
         GROUP_HOVER: "group-hover:underline",
       });
 
+const match_font = (font: types.layout.Font | undefined) =>
+  font === undefined
+    ? undefined
+    : utils.general.match_str_val(font, {
+        MONO: "font-mono",
+      });
+
 const match_ring = (ring: types.layout.Ring | undefined, level: number) =>
   ring === undefined
     ? undefined
@@ -409,4 +416,5 @@ export {
   match_float,
   match_aspect_ratio,
   match_underline,
+  match_font,
 };

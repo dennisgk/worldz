@@ -12,7 +12,6 @@ const Scrollable = (props: ScrollableProps) => {
   const bottom_ref = utils.react.use_ref<HTMLDivElement>(null);
 
   utils.react.use_effect(() => {
-    console.log("changed");
     bottom_ref.current!.scrollTop = bottom_ref.current?.scrollHeight || 0;
   }, [props.children]);
 

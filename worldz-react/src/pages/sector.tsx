@@ -1,15 +1,16 @@
-import { deps, utils, components } from "../meta";
+import { deps, utils, components, types } from "../meta";
 
 const Sector = () => {
   const mount_ref = utils.react.use_ref<HTMLDivElement>(null);
   const joystick_ref = utils.react.use_ref<HTMLDivElement>(null);
   const [command_overlay, set_command_overlay] = utils.react.use_state(false);
   const sector = utils.react.use_ref<utils.sector.Sector>(undefined!);
-  const [command_value, set_command_value] = utils.react.use_state("");
 
+  const [command_value, set_command_value] = utils.react.use_state("");
   const [command_history, set_command_history] = utils.react.use_state<
-    Array<[string, string]>
+    Array<[string, Array<string>]>
   >([]);
+  const [running_command, set_running_command] = utils.react.use_state(false);
 
   utils.react.use_effect(() => {
     if (mount_ref.current == null) return;
@@ -201,10 +202,207 @@ const Sector = () => {
       return;
     }
 
-    set_command_history([
-      ...command_history,
-      [command_value, `Proc ${command_value}`],
-    ]);
+    const open_file_dialog = (accept: string, multiple: boolean = false) =>
+      new Promise<Array<File>>((resolve) => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = accept;
+        input.multiple = multiple;
+        input.style.display = "none";
+
+        input.addEventListener("change", () => {
+          if (input.files && input.files.length > 0) {
+            resolve([...input.files]);
+          } else {
+            resolve([]);
+          }
+          document.body.removeChild(input);
+        });
+
+        input.addEventListener("cancel", () => resolve([]));
+
+        document.body.appendChild(input);
+        input.click();
+      });
+
+    let prom = async () => {
+      const help = async () => [
+        "help()",
+        "clear()",
+        "ls(folder?)",
+        "delete_obj(folder, name)",
+        "upload_gltf_glb(folder, name)",
+        "upload_fbx(folder, name)",
+        "upload_stl(folder, name)",
+        "load(folder, name)",
+      ];
+
+      let _do_clear = false;
+
+      const clear = async () => {
+        _do_clear = true;
+        return [];
+      };
+
+      const _upload_obj = async (
+        files: Array<File>,
+        folder: string,
+        name: string,
+        model: types.sector.Model
+      ) => {
+        let form_data = new FormData();
+        for (let i = 0; i < files.length; i++) {
+          form_data.append("files", files[i]);
+        }
+
+        let f_resp = await fetch(
+          `${utils.asite.PY_BACKEND}/api/upload_obj?folder=${encodeURIComponent(
+            folder
+          )}&name=${encodeURIComponent(name)}&model=${encodeURIComponent(
+            model
+          )}`,
+          {
+            method: "POST",
+            body: form_data,
+          }
+        );
+
+        if (f_resp.ok) return ["Okay"];
+
+        return ["Error"];
+      };
+
+      const delete_obj = async (folder: string, name: string) => {
+        if (
+          (
+            await fetch(
+              `${
+                utils.asite.PY_BACKEND
+              }/api/delete_obj?folder=${encodeURIComponent(
+                folder
+              )}&name=${encodeURIComponent(name)}`,
+              { method: "POST" }
+            )
+          ).ok
+        )
+          return ["Okay"];
+
+        return ["Error"];
+      };
+
+      const ls = async (...args: Array<string>) => {
+        if (args.length === 0)
+          return await (
+            await fetch(`${utils.asite.PY_BACKEND}/api/folders`)
+          ).json();
+
+        if (args.length === 1)
+          return await (
+            await fetch(
+              `${
+                utils.asite.PY_BACKEND
+              }/api/folder_objs?folder=${encodeURIComponent(args[0])}`
+            )
+          ).json();
+
+        return ["Argument error"];
+      };
+
+      const upload_gltf_glb = async (folder: string, name: string) => {
+        if (folder === undefined || name === undefined) {
+          return ["Argument error"];
+        }
+
+        let files = await open_file_dialog(".gltf,.glb");
+        if (files.length !== 1) {
+          return ["File needed"];
+        }
+
+        return _upload_obj(files, folder, name, "GLTF_GLB");
+      };
+      const upload_fbx = async (folder: string, name: string) => {
+        if (folder === undefined || name === undefined) {
+          return ["Argument error"];
+        }
+
+        let files = await open_file_dialog(".fbx");
+        if (files.length !== 1) {
+          return ["File needed"];
+        }
+
+        return _upload_obj(files, folder, name, "FBX");
+      };
+      const upload_stl = async (folder: string, name: string) => {
+        if (folder === undefined || name === undefined) {
+          return ["Argument error"];
+        }
+
+        let files = await open_file_dialog(".stl");
+        if (files.length !== 1) {
+          return ["File needed"];
+        }
+
+        return _upload_obj(files, folder, name, "STL");
+      };
+
+      const load = async (folder: string, name: string) => {
+        if (folder === undefined || name === undefined) {
+          return ["Argument error"];
+        }
+
+        let desc = await (
+          await fetch(
+            `${utils.asite.PY_BACKEND}/api/obj?folder=${encodeURIComponent(
+              folder
+            )}&name=${encodeURIComponent(name)}`
+          )
+        ).json();
+
+        return await sector.current.load(folder, name, desc.files, desc.model);
+      };
+
+      let out_val: Array<string> = [];
+
+      try {
+        out_val = await eval(command_value);
+
+        if (
+          !(
+            Array.isArray(out_val) &&
+            out_val.every((item) => typeof item === "string")
+          )
+        ) {
+          out_val = ["Wrong type"];
+        }
+      } catch (err) {
+        console.error(err);
+        out_val = ["Error"];
+      }
+
+      (window as any).UNREF_EVAL_OBJ = [];
+
+      (window as any).UNREF_EVAL_OBJ.push(help);
+      (window as any).UNREF_EVAL_OBJ.push(clear);
+
+      (window as any).UNREF_EVAL_OBJ.push(ls);
+      (window as any).UNREF_EVAL_OBJ.push(delete_obj);
+
+      (window as any).UNREF_EVAL_OBJ.push(upload_gltf_glb);
+      (window as any).UNREF_EVAL_OBJ.push(upload_fbx);
+      (window as any).UNREF_EVAL_OBJ.push(upload_stl);
+
+      (window as any).UNREF_EVAL_OBJ.push(load);
+
+      set_running_command(false);
+      if (_do_clear) {
+        set_command_history([]);
+      } else {
+        set_command_history([...command_history, [command_value, out_val]]);
+      }
+    };
+
+    set_running_command(true);
+    prom();
 
     set_command_value("");
   };
@@ -249,23 +447,27 @@ const Sector = () => {
               >
                 <components.layout.stack.Stack direction="VERTICAL">
                   {command_history.map((v, index) => (
-                    <>
-                      <components.layout.stack.Cell
-                        key={`cmd_${index}_${v[0]}`}
-                      >
-                        <components.layout.text.Text size="LARGE" bold>
+                    <components.Fragment key={`cmd_${index}_${v[0]}`}>
+                      <components.layout.stack.Cell>
+                        <components.layout.text.Text
+                          font="MONO"
+                          size="LARGE"
+                          bold
+                        >
                           {v[0]}
                         </components.layout.text.Text>
                       </components.layout.stack.Cell>
 
-                      <components.layout.stack.Cell
-                        key={`out_${index}_${v[1]}`}
-                      >
-                        <components.layout.text.Text size="LARGE">
-                          {v[1]}
-                        </components.layout.text.Text>
-                      </components.layout.stack.Cell>
-                    </>
+                      {v[1].map((x, inner_ind) => (
+                        <components.layout.stack.Cell
+                          key={`out_${index}_${x}_${inner_ind}`}
+                        >
+                          <components.layout.text.Text font="MONO" size="LARGE">
+                            {x}
+                          </components.layout.text.Text>
+                        </components.layout.stack.Cell>
+                      ))}
+                    </components.Fragment>
                   ))}
                 </components.layout.stack.Stack>
               </components.layout.scrollable.Scrollable>
@@ -275,9 +477,14 @@ const Sector = () => {
               <components.layout.textbox.Textbox
                 id="command_textbox"
                 size="LARGE"
-                value={command_value}
-                on_change={(e) => set_command_value(e.target.value)}
-                on_enter={process_command}
+                value={running_command ? "" : command_value}
+                on_change={
+                  running_command
+                    ? undefined
+                    : (e) => set_command_value(e.target.value)
+                }
+                on_enter={running_command ? undefined : process_command}
+                font="MONO"
               />
             </components.layout.stack.Cell>
           </components.layout.stack.Stack>

@@ -111,6 +111,8 @@ type ColumnSpanBase =
   | `${TailwindBreakpoint}:col-span-${TailwindColumns}`;
 type ColumnSpan = ColumnSpanBase | Array<ColumnSpanBase>;
 
+type Font = "MONO";
+
 export type {
   AspectRatio,
   Padding,
@@ -138,4 +140,5 @@ export type {
   Corner,
   Rows,
   Underline,
+  Font,
 };
