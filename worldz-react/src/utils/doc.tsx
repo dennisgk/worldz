@@ -1,11 +1,11 @@
 import { utils } from "../meta";
 
 const use_theme = () => {
-  if (window.matchMedia(utils.layout.match_dark_theme()).matches) {
+  //if (window.matchMedia(utils.layout.match_dark_theme()).matches) {
     document.documentElement.classList.add(utils.layout.match_dark());
-  }
+  //}
 
-  window
+  /*window
     .matchMedia(utils.layout.match_dark_theme())
     .addEventListener("change", ({ matches }) => {
       if (
@@ -21,7 +21,7 @@ const use_theme = () => {
       ) {
         document.documentElement.classList.remove(utils.layout.match_dark());
       }
-    });
+    });*/
 };
 
 const is_mobile = () =>

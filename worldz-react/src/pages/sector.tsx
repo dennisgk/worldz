@@ -12,6 +12,11 @@ const Sector = () => {
   >([]);
   const [running_command, set_running_command] = utils.react.use_state(false);
 
+  const [editing_readme, set_editing_readme] = utils.react.use_state<undefined | string>(undefined);
+  const [editing_readme_val, set_editing_readme_val] = utils.react.use_state<string>("");
+
+  const [opening_readme, set_opening_readme] = utils.react.use_state<undefined | string>(undefined);
+
   const info_text_ref = utils.react.use_ref<HTMLSpanElement>(null);
 
   utils.react.use_effect(() => {
@@ -27,6 +32,10 @@ const Sector = () => {
       (text) => {
         if (info_text_ref.current === null) return;
         info_text_ref.current.innerText = text;
+      },
+      name => {
+        console.log(name);
+        set_opening_readme(name);
       }
     );
 
@@ -46,6 +55,7 @@ const Sector = () => {
           .pipe<1>()
           .s(0, () => (e.target as any).tagName.toLowerCase() === "canvas")
           .g(0, (_) => (_ ? sector.current.lock() : undefined))
+          .g(0, _ => _ ? sector.current.click() : undefined)
           .ex()
           .nov()
       );
@@ -86,62 +96,62 @@ const Sector = () => {
           ? set_command_overlay(false)
           : undefined
         : e.code === "KeyE"
-        ? sector.current.toggle_fly()
-        : e.code === "Space"
-        ? sector.current.is_flying()
-          ? sector.current.fly_up()
-          : sector.current.jump()
-        : e.code === "ShiftLeft"
-        ? sector.current.is_flying()
-          ? sector.current.fly_down()
-          : undefined
-        : e.code === "KeyW"
-        ? (sector.current.move.forward = 1)
-        : e.code === "KeyS"
-        ? (sector.current.move.backward = 1)
-        : e.code === "KeyA"
-        ? (sector.current.move.left = 1)
-        : e.code === "KeyD"
-        ? (sector.current.move.right = 1)
-        : e.code === "KeyC"
-        ? utils
-            .pipe<1>()
-            .s(0, () => document.pointerLockElement !== null)
-            .g(0, (_) => (_ ? document.exitPointerLock() : undefined))
-            .no(() => e.preventDefault())
-            .no(
-              () =>
-                (sector.current.move = {
-                  forward: 0,
-                  backward: 0,
-                  left: 0,
-                  right: 0,
-                })
-            )
-            .no(() => set_command_overlay(true))
-            .ex()
-            .nov()
-        : undefined;
+          ? sector.current.toggle_fly()
+          : e.code === "Space"
+            ? sector.current.is_flying()
+              ? sector.current.fly_up()
+              : sector.current.jump()
+            : e.code === "ShiftLeft"
+              ? sector.current.is_flying()
+                ? sector.current.fly_down()
+                : undefined
+              : e.code === "KeyW"
+                ? (sector.current.move.forward = 1)
+                : e.code === "KeyS"
+                  ? (sector.current.move.backward = 1)
+                  : e.code === "KeyA"
+                    ? (sector.current.move.left = 1)
+                    : e.code === "KeyD"
+                      ? (sector.current.move.right = 1)
+                      : e.code === "KeyC"
+                        ? utils
+                          .pipe<1>()
+                          .s(0, () => document.pointerLockElement !== null)
+                          .g(0, (_) => (_ ? document.exitPointerLock() : undefined))
+                          .no(() => e.preventDefault())
+                          .no(
+                            () =>
+                            (sector.current.move = {
+                              forward: 0,
+                              backward: 0,
+                              left: 0,
+                              right: 0,
+                            })
+                          )
+                          .no(() => set_command_overlay(true))
+                          .ex()
+                          .nov()
+                        : undefined;
     const onKeyUp = (e: KeyboardEvent) =>
       command_overlay
         ? undefined
         : e.code === "Space"
-        ? sector.current.is_flying()
-          ? sector.current.fly_reset_up()
-          : undefined
-        : e.code === "ShiftLeft"
-        ? sector.current.is_flying()
-          ? sector.current.fly_reset_down()
-          : undefined
-        : e.code === "KeyW"
-        ? (sector.current.move.forward = 0)
-        : e.code === "KeyS"
-        ? (sector.current.move.backward = 0)
-        : e.code === "KeyA"
-        ? (sector.current.move.left = 0)
-        : e.code === "KeyD"
-        ? (sector.current.move.right = 0)
-        : undefined;
+          ? sector.current.is_flying()
+            ? sector.current.fly_reset_up()
+            : undefined
+          : e.code === "ShiftLeft"
+            ? sector.current.is_flying()
+              ? sector.current.fly_reset_down()
+              : undefined
+            : e.code === "KeyW"
+              ? (sector.current.move.forward = 0)
+              : e.code === "KeyS"
+                ? (sector.current.move.backward = 0)
+                : e.code === "KeyA"
+                  ? (sector.current.move.left = 0)
+                  : e.code === "KeyD"
+                    ? (sector.current.move.right = 0)
+                    : undefined;
     if (!utils.doc.is_mobile()) {
       window.addEventListener("keydown", onKeyDown);
       window.addEventListener("keyup", onKeyUp);
@@ -383,6 +393,8 @@ const Sector = () => {
         "set_speed(num)",
         "get_speed()",
         "edit_readme(name)",
+        "open_readme(name)",
+        "ls_connects()",
         "connect(name1, name2)",
         "disconnect(name1, name2)",
       ];
@@ -440,8 +452,7 @@ const Sector = () => {
         if (
           (
             await fetch(
-              `${
-                utils.asite.PY_BACKEND
+              `${utils.asite.PY_BACKEND
               }/api/delete_obj?folder=${encodeURIComponent(
                 folder
               )}&name=${encodeURIComponent(name)}`,
@@ -463,8 +474,7 @@ const Sector = () => {
         if (args.length === 1)
           return await (
             await fetch(
-              `${
-                utils.asite.PY_BACKEND
+              `${utils.asite.PY_BACKEND
               }/api/folder_objs?folder=${encodeURIComponent(args[0])}`
             )
           ).json();
@@ -510,7 +520,7 @@ const Sector = () => {
       };
 
       const load = async (folder: string, name: string, local_name: string) => {
-        if (folder === undefined || name === undefined) {
+        if (folder === undefined || name === undefined || local_name === undefined) {
           return ["Argument error"];
         }
 
@@ -640,7 +650,7 @@ const Sector = () => {
 
       const edit_obj = async (name: string) => {
         if (name === undefined) return ["Argument error"];
-
+        if (!sector.current.ls_objs().includes(name)) return ["Object not found"]
         sector.current.edit_obj(name);
         return ["Entered edit"];
       };
@@ -676,11 +686,34 @@ const Sector = () => {
         return [sector.current.glob_speed_mult.toString()];
       };
 
-      const edit_readme = async (name: string) => {};
+      const edit_readme = async (name: string) => {
+        if (name === undefined) return ["Argument error"];
+        if(!sector.current.ls_objs().includes(name)) return ["No object found"]
 
-      const connect = async (name1: string, name2: string) => {};
+        set_editing_readme(name);
+        set_editing_readme_val(sector.current.get_readme(name)!);
 
-      const disconnect = async (name1: string, name2: string) => {};
+        return ["Launched editor"];
+      };
+
+      const open_readme = async(name: string) => {
+        if(name === undefined) return ["Argument error"];
+
+        set_opening_readme(name);
+        return ["Opened"];
+      };
+
+      const ls_connects = async () => sector.current.ls_connects();
+
+      const connect = async (name1: string, name2: string) => { 
+        if(name1 === undefined || name2 === undefined) return ["Argument error"];
+        return sector.current.connect(name1, name2);
+      };
+
+      const disconnect = async (name1: string, name2: string) => {
+        if(name1 === undefined || name2 === undefined) return ["Argument error"];
+        return sector.current.disconnect(name1, name2);
+       };
 
       let out_val: Array<string> = [];
 
@@ -735,6 +768,12 @@ const Sector = () => {
       (window as any).UNREF_EVAL_OBJ.push(set_speed);
       (window as any).UNREF_EVAL_OBJ.push(get_speed);
 
+      (window as any).UNREF_EVAL_OBJ.push(open_readme);
+      (window as any).UNREF_EVAL_OBJ.push(edit_readme);
+      (window as any).UNREF_EVAL_OBJ.push(ls_connects);
+      (window as any).UNREF_EVAL_OBJ.push(connect);
+      (window as any).UNREF_EVAL_OBJ.push(disconnect);
+
       set_running_command(false);
       if (_do_clear) {
         set_command_history([]);
@@ -775,11 +814,11 @@ const Sector = () => {
           right: utils.doc.is_mobile() ? 0 : 10,
           ...(utils.doc.is_mobile()
             ? {
-                bottom: -10,
-              }
+              bottom: -10,
+            }
             : {
-                top: 0,
-              }),
+              top: 0,
+            }),
         }}
       >
         <components.layout.text.Text
@@ -788,6 +827,81 @@ const Sector = () => {
           manual={info_text_ref}
         />
       </div>
+
+      {opening_readme === undefined ? <></> : <div style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        backgroundColor: "#000000DD",
+        zIndex: 25,
+        pointerEvents: "auto",
+      }} onClick={e => e.stopPropagation()}>
+        <components.layout.container.Container width="w-full" height="h-full">
+          <components.layout.stack.Stack direction="VERTICAL" overflow="HIDDEN">
+            <components.layout.stack.Cell>
+              {opening_readme}
+            </components.layout.stack.Cell>
+
+            <components.layout.stack.Cell grow overflow="HIDDEN">
+              <components.layout.scrollable.Scrollable direction="VERTICAL">
+                <div className="prose text-white">
+                  <deps.markdown.Markdown remarkPlugins={[deps.remarkGfm]}>{sector.current.get_readme(opening_readme)}</deps.markdown.Markdown>
+                </div>
+              </components.layout.scrollable.Scrollable>
+            </components.layout.stack.Cell>
+
+            <components.layout.stack.Cell>
+              <components.layout.level.Ascend>
+                                  <components.asite.text_button.TextButton on_click={() => set_opening_readme(undefined)}>Close</components.asite.text_button.TextButton>
+              </components.layout.level.Ascend>
+            </components.layout.stack.Cell>
+          </components.layout.stack.Stack>
+        </components.layout.container.Container>
+      </div>}
+
+      {editing_readme === undefined ? <></> : <div style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        backgroundColor: "#000000FF",
+        zIndex: 30,
+        pointerEvents: "auto",
+      }} onClick={e => e.stopPropagation()}>
+        <components.layout.container.Container width="w-full" height="h-full">
+          <components.layout.stack.Stack direction="VERTICAL" overflow="HIDDEN">
+            <components.layout.stack.Cell>
+              {editing_readme}
+            </components.layout.stack.Cell>
+
+            <components.layout.stack.Cell grow overflow="HIDDEN">
+              <components.layout.scrollable.Scrollable direction="VERTICAL">
+                <textarea style={{ background: "black", padding: "2px", border: "1px solid white", }} className={["min-h-full", "w-full", "font-mono"].join_class_name()} value={editing_readme_val} onChange={e => set_editing_readme_val(e.target.value)} />
+              </components.layout.scrollable.Scrollable>
+            </components.layout.stack.Cell>
+
+            <components.layout.stack.Cell>
+              <components.layout.level.Ascend>
+              <components.layout.grid.Grid cols={"grid-cols-2"} gap="MEDIUM">
+                <components.layout.grid.Cell>
+                  <components.asite.text_button.TextButton on_click={() => set_editing_readme(undefined)}>Cancel</components.asite.text_button.TextButton>
+                </components.layout.grid.Cell>
+
+                <components.layout.grid.Cell>
+                  <components.asite.text_button.TextButton on_click={() => {
+                    sector.current.set_readme(editing_readme, editing_readme_val);
+                    set_editing_readme(undefined);
+                  }}>Save</components.asite.text_button.TextButton>
+                </components.layout.grid.Cell>
+              </components.layout.grid.Grid>
+              </components.layout.level.Ascend>
+            </components.layout.stack.Cell>
+          </components.layout.stack.Stack>
+        </components.layout.container.Container>
+      </div>}
 
       <div
         style={{
