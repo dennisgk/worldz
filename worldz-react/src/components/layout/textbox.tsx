@@ -14,6 +14,7 @@ type TextboxProps = {
   disabled?: boolean | undefined;
   id?: string | undefined;
   font?: types.layout.Font | undefined;
+  bare?: boolean | undefined;
 };
 
 const Textbox = (props: TextboxProps) => {
@@ -51,6 +52,10 @@ const Textbox = (props: TextboxProps) => {
       {...(props.password === true
         ? { type: "password", autoComplete: "on" }
         : { type: "text" })}
+      autoCapitalize={props.bare === true ? "off" : undefined}
+      autoComplete={props.bare === true ? "off" : undefined}
+      autoCorrect={props.bare === true ? "off" : undefined}
+      spellCheck={props.bare === true ? "false" : undefined}
     />
   );
 };

@@ -1,6 +1,6 @@
 import { types, utils } from "../../meta";
 
-type TextProps = types.react.RequiredChildrenProps & {
+type TextProps = {
   size: types.layout.Size;
   bold?: types.layout.Bold | undefined;
   overflow?: types.layout.Overflow | undefined;
@@ -10,10 +10,16 @@ type TextProps = types.react.RequiredChildrenProps & {
   underline?: types.layout.Underline | undefined;
   word_break?: boolean | undefined;
   font?: types.layout.Font | undefined;
-};
+} & (
+  | {
+      manual: types.react.LegacyRef<HTMLSpanElement>;
+    }
+  | ({ manual?: undefined } & types.react.RequiredChildrenProps)
+);
 
 const Text = (props: TextProps) => (
   <span
+    ref={props.manual}
     className={[
       utils.layout.match_size(props.size),
       utils.layout.match_bold(props.bold),
@@ -26,7 +32,7 @@ const Text = (props: TextProps) => (
     ].join_class_name()}
     style={props.word_break === true ? { wordBreak: "break-word" } : undefined}
   >
-    {props.children}
+    {props.manual === undefined ? props.children : null}
   </span>
 );
 

@@ -12,14 +12,22 @@ const Sector = () => {
   >([]);
   const [running_command, set_running_command] = utils.react.use_state(false);
 
+  const info_text_ref = utils.react.use_ref<HTMLSpanElement>(null);
+
   utils.react.use_effect(() => {
     if (mount_ref.current == null) return;
 
     let width = mount_ref.current.clientWidth;
     let height = mount_ref.current.clientHeight;
 
-    sector.current = new utils.sector.Sector(width, height, (elem) =>
-      mount_ref!.current!.appendChild(elem)
+    sector.current = new utils.sector.Sector(
+      width,
+      height,
+      (elem) => mount_ref!.current!.appendChild(elem),
+      (text) => {
+        if (info_text_ref.current === null) return;
+        info_text_ref.current.innerText = text;
+      }
     );
 
     return () => sector.current.deconstruct();
@@ -77,6 +85,16 @@ const Sector = () => {
         ? e.code === "Escape"
           ? set_command_overlay(false)
           : undefined
+        : e.code === "KeyE"
+        ? sector.current.toggle_fly()
+        : e.code === "Space"
+        ? sector.current.is_flying()
+          ? sector.current.fly_up()
+          : sector.current.jump()
+        : e.code === "ShiftLeft"
+        ? sector.current.is_flying()
+          ? sector.current.fly_down()
+          : undefined
         : e.code === "KeyW"
         ? (sector.current.move.forward = 1)
         : e.code === "KeyS"
@@ -107,6 +125,14 @@ const Sector = () => {
     const onKeyUp = (e: KeyboardEvent) =>
       command_overlay
         ? undefined
+        : e.code === "Space"
+        ? sector.current.is_flying()
+          ? sector.current.fly_reset_up()
+          : undefined
+        : e.code === "ShiftLeft"
+        ? sector.current.is_flying()
+          ? sector.current.fly_reset_down()
+          : undefined
         : e.code === "KeyW"
         ? (sector.current.move.forward = 0)
         : e.code === "KeyS"
@@ -119,45 +145,115 @@ const Sector = () => {
     if (!utils.doc.is_mobile()) {
       window.addEventListener("keydown", onKeyDown);
       window.addEventListener("keyup", onKeyUp);
+
+      return () => {
+        window.removeEventListener("keydown", onKeyDown);
+        window.removeEventListener("keyup", onKeyUp);
+      };
     }
 
     if (utils.doc.is_mobile()) {
-      let isDraggingCamera = false;
-      let lastTouchX = 0;
-      let lastTouchY = 0;
-      let cameraTouchId: number | null = null;
       let pitch = 0; // vertical (X-axis rotation)
       let yaw = 0; // horizontal (Y-axis rotation)
 
-      mount_ref.current.addEventListener(
-        "touchstart",
-        (e) => {
-          for (let touch of e.touches) {
-            const target = touch.target;
-            const isJoystick = joystick_ref.current?.contains(target as any);
-            if (!isJoystick && cameraTouchId === null) {
-              cameraTouchId = touch.identifier;
-              lastTouchX = touch.clientX;
-              lastTouchY = touch.clientY;
-              isDraggingCamera = true;
+      let tapCount = 0;
+      let tapTimer: number | null = null;
+      let sequenceTouchId: number | null = null;
+      let tapStartTime = 0;
+      let isDragging = false;
+      let dragStartX = 0;
+      let dragStartY = 0;
+      let dragRealStartX = 0;
+      let dragRealStartY = 0;
+      const TAP_THRESHOLD = 0;
+      const DOUBLE_TAP_DELAY = 250;
+      const TAP_FLY_DEAD_ZONE = 15;
+
+      let on_touch_start = (e: any) => {
+        if (command_overlay) return;
+
+        e.preventDefault();
+
+        for (let touch of e.changedTouches) {
+          if (
+            !joystick_ref.current?.contains(touch.target as any) &&
+            sequenceTouchId === null
+          ) {
+            sequenceTouchId = touch.identifier;
+            dragStartX = touch.clientX;
+            dragStartY = touch.clientY;
+            dragRealStartX = touch.clientX;
+            dragRealStartY = touch.clientY;
+            isDragging = false;
+
+            const now = Date.now();
+            if (now - tapStartTime < DOUBLE_TAP_DELAY) {
+              tapCount += 1;
+            } else {
+              tapCount = 1;
             }
+            tapStartTime = now;
+
+            if (tapTimer) clearTimeout(tapTimer);
+
+            let curSequenceTouchId = sequenceTouchId;
+
+            tapTimer = window.setTimeout(() => {
+              if (!isDragging && curSequenceTouchId != sequenceTouchId) {
+                if (tapCount === 2) {
+                  sector.current.toggle_fly();
+                }
+                if (tapCount === 3) {
+                  set_command_overlay(true);
+                }
+              }
+              tapCount = 0;
+            }, DOUBLE_TAP_DELAY);
           }
-        },
-        { passive: false }
-      );
+        }
+      };
 
-      mount_ref.current.addEventListener(
-        "touchmove",
-        (e) => {
-          for (let touch of e.touches) {
-            if (touch.identifier === cameraTouchId && isDraggingCamera) {
-              const dx = touch.clientX - lastTouchX;
-              const dy = touch.clientY - lastTouchY;
+      let on_touch_move = (e: any) => {
+        if (command_overlay) return;
 
-              lastTouchX = touch.clientX;
-              lastTouchY = touch.clientY;
+        e.preventDefault();
 
-              const sensitivity = 0.004;
+        for (let touch of e.changedTouches) {
+          if (touch.identifier === sequenceTouchId) {
+            if (
+              !isDragging &&
+              Math.hypot(
+                touch.clientX - dragRealStartX,
+                touch.clientY - dragRealStartY
+              ) > TAP_THRESHOLD
+            ) {
+              isDragging = true;
+
+              if (tapCount === 2) {
+                if (tapTimer) clearTimeout(tapTimer);
+              }
+            }
+
+            if (isDragging && tapCount == 2) {
+              sector.current.fly_reset_down();
+              sector.current.fly_reset_up();
+
+              if (
+                Math.abs(touch.clientX - dragRealStartX) > TAP_FLY_DEAD_ZONE
+              ) {
+                if (touch.clientX - dragRealStartX > 0) {
+                  sector.current.fly_up();
+                } else {
+                  sector.current.fly_down();
+                }
+              }
+            }
+
+            if (tapCount <= 1) {
+              const dx = touch.clientX - dragStartX;
+              const dy = touch.clientY - dragStartY;
+              // Your camera logic
+              const sensitivity = 0.006;
               yaw -= dx * sensitivity;
               pitch -= dy * sensitivity;
 
@@ -168,32 +264,63 @@ const Sector = () => {
                 "YXZ"
               );
               sector.current.camera_quat_set(euler);
-            }
-          }
-        },
-        { passive: false }
-      );
 
-      mount_ref.current.addEventListener(
-        "touchend",
-        (e) => {
-          for (let touch of e.changedTouches) {
-            if (touch.identifier === cameraTouchId) {
-              cameraTouchId = null;
-              isDraggingCamera = false;
+              dragStartX = touch.clientX;
+              dragStartY = touch.clientY;
             }
           }
-        },
-        { passive: false }
-      );
+        }
+      };
+
+      let on_touch_end = (e: any) => {
+        if (command_overlay) return;
+
+        e.preventDefault();
+
+        for (let touch of e.changedTouches) {
+          if (touch.identifier === sequenceTouchId) {
+            if (!isDragging) {
+              if (tapCount === 1) {
+                sector.current.jump();
+              }
+            }
+
+            sequenceTouchId = null;
+            isDragging = false;
+
+            sector.current.fly_reset_up();
+            sector.current.fly_reset_down();
+
+            if (
+              Math.hypot(
+                touch.clientX - dragRealStartX,
+                touch.clientY - dragRealStartY
+              ) > TAP_THRESHOLD
+            ) {
+              if (tapTimer) clearTimeout(tapTimer);
+            }
+          }
+        }
+      };
+
+      mount_ref.current.addEventListener("touchstart", on_touch_start, {
+        passive: false,
+      });
+
+      mount_ref.current.addEventListener("touchmove", on_touch_move, {
+        passive: false,
+      });
+
+      mount_ref.current.addEventListener("touchend", on_touch_end, {
+        passive: false,
+      });
+
+      return () => {
+        mount_ref.current?.removeEventListener("touchstart", on_touch_start);
+        mount_ref.current?.removeEventListener("touchmove", on_touch_move);
+        mount_ref.current?.removeEventListener("touchend", on_touch_end);
+      };
     }
-
-    return () => {
-      if (!utils.doc.is_mobile()) {
-        window.removeEventListener("keydown", onKeyDown);
-        window.removeEventListener("keyup", onKeyUp);
-      }
-    };
   }, [command_overlay]);
 
   const process_command = () => {
@@ -229,12 +356,35 @@ const Sector = () => {
       const help = async () => [
         "help()",
         "clear()",
+        "close()",
+        "set_name(name)",
         "ls(folder?)",
         "delete_obj(folder, name)",
         "upload_gltf_glb(folder, name)",
         "upload_fbx(folder, name)",
         "upload_stl(folder, name)",
-        "load(folder, name)",
+        "load(folder, name, local_name)",
+        "load_text(text, local_name)",
+        "create_tp_here(name)",
+        "delete_tp(name)",
+        "ls_tps()",
+        "tp(name)",
+        "ls_objs()",
+        "get_obj_pos(name)",
+        "get_obj_rot(name)",
+        "get_obj_scale(name)",
+        "set_obj_pos(name, x, y, z)",
+        "set_obj_rot(name, x, y, z)",
+        "set_obj_scale(name, x, y, z)",
+        "edit_obj(name)",
+        "override_mat(name, color)",
+        "reset_mat(name)",
+        "exit_edit()",
+        "set_speed(num)",
+        "get_speed()",
+        "edit_readme(name)",
+        "connect(name1, name2)",
+        "disconnect(name1, name2)",
       ];
 
       let _do_clear = false;
@@ -242,6 +392,20 @@ const Sector = () => {
       const clear = async () => {
         _do_clear = true;
         return [];
+      };
+
+      const close = async () => {
+        set_command_overlay(false);
+        return [];
+      };
+
+      const set_name = async (name: string) => {
+        if (name === undefined) {
+          return ["Argument error"];
+        }
+
+        sector.current.set_name(name);
+        return ["Name set"];
       };
 
       const _upload_obj = async (
@@ -345,7 +509,7 @@ const Sector = () => {
         return _upload_obj(files, folder, name, "STL");
       };
 
-      const load = async (folder: string, name: string) => {
+      const load = async (folder: string, name: string, local_name: string) => {
         if (folder === undefined || name === undefined) {
           return ["Argument error"];
         }
@@ -358,8 +522,165 @@ const Sector = () => {
           )
         ).json();
 
-        return await sector.current.load(folder, name, desc.files, desc.model);
+        return await sector.current.load(
+          folder,
+          name,
+          desc.files,
+          desc.model,
+          local_name
+        );
       };
+
+      const load_text = (text: string, name: string) => {
+        if (text === undefined || name === undefined) {
+          return ["Argument error"];
+        }
+
+        sector.current.load_text(text, name);
+        return ["Loaded"];
+      };
+
+      const create_tp_here = async (name: string) => {
+        if (name === undefined) {
+          return ["Argument error"];
+        }
+
+        sector.current.create_tp_at_pos(name);
+        return ["Created"];
+      };
+
+      const delete_tp = async (name: string) => {
+        if (name === undefined) {
+          return ["Argument error"];
+        }
+
+        sector.current.delete_tp(name);
+        return ["Deleted"];
+      };
+
+      const ls_tps = async () => sector.current.ls_tps();
+
+      const tp = async (name: string) => {
+        if (name === undefined) {
+          return ["Argument error"];
+        }
+
+        sector.current.tp(name);
+        return ["Teleported"];
+      };
+
+      const ls_objs = async () => sector.current.ls_objs();
+
+      const get_obj_pos = async (name: string) =>
+        name === undefined
+          ? ["Argument error"]
+          : sector.current.get_obj_pos(name);
+
+      const get_obj_rot = async (name: string) =>
+        name === undefined
+          ? ["Argument error"]
+          : sector.current.get_obj_rot(name);
+
+      const get_obj_scale = async (name: string) =>
+        name === undefined
+          ? ["Argument error"]
+          : sector.current.get_obj_scale(name);
+
+      const set_obj_pos = async (
+        name: string,
+        x: number,
+        y: number,
+        z: number
+      ) => {
+        if (
+          name === undefined ||
+          x === undefined ||
+          y === undefined ||
+          z === undefined
+        )
+          return ["Argument error"];
+
+        sector.current.set_obj_pos(name, x, y, z);
+        return ["Set"];
+      };
+
+      const set_obj_rot = async (
+        name: string,
+        x: number,
+        y: number,
+        z: number
+      ) => {
+        if (
+          name === undefined ||
+          x === undefined ||
+          y === undefined ||
+          z === undefined
+        )
+          return ["Argument error"];
+        sector.current.set_obj_rot(name, x, y, z);
+        return ["Set"];
+      };
+
+      const set_obj_scale = async (
+        name: string,
+        x: number,
+        y: number,
+        z: number
+      ) => {
+        if (
+          name === undefined ||
+          x === undefined ||
+          y === undefined ||
+          z === undefined
+        )
+          return ["Argument error"];
+        sector.current.set_obj_scale(name, x, y, z);
+        return ["Set"];
+      };
+
+      const edit_obj = async (name: string) => {
+        if (name === undefined) return ["Argument error"];
+
+        sector.current.edit_obj(name);
+        return ["Entered edit"];
+      };
+
+      const override_mat = async (name: string, color: number) => {
+        if (name === undefined || color === undefined)
+          return ["Argument error"];
+
+        sector.current.override_mat(name, color);
+        return ["Set"];
+      };
+
+      const reset_mat = async (name: string) => {
+        if (name === undefined) {
+          return ["Argument error"];
+        }
+
+        sector.current.reset_mat(name);
+        return ["Reset", "This requires save? and reload"];
+      };
+
+      const exit_edit = async () => {
+        sector.current.exit_edit();
+        return ["Exited edit"];
+      };
+
+      const set_speed = async (num: number) => {
+        sector.current.glob_speed_mult = num;
+        return ["Set"];
+      };
+
+      const get_speed = async () => {
+        return [sector.current.glob_speed_mult.toString()];
+      };
+
+      const edit_readme = async (name: string) => {};
+
+      const connect = async (name1: string, name2: string) => {};
+
+      const disconnect = async (name1: string, name2: string) => {};
 
       let out_val: Array<string> = [];
 
@@ -383,15 +704,36 @@ const Sector = () => {
 
       (window as any).UNREF_EVAL_OBJ.push(help);
       (window as any).UNREF_EVAL_OBJ.push(clear);
+      (window as any).UNREF_EVAL_OBJ.push(close);
 
+      (window as any).UNREF_EVAL_OBJ.push(set_name);
       (window as any).UNREF_EVAL_OBJ.push(ls);
       (window as any).UNREF_EVAL_OBJ.push(delete_obj);
 
       (window as any).UNREF_EVAL_OBJ.push(upload_gltf_glb);
       (window as any).UNREF_EVAL_OBJ.push(upload_fbx);
       (window as any).UNREF_EVAL_OBJ.push(upload_stl);
-
       (window as any).UNREF_EVAL_OBJ.push(load);
+      (window as any).UNREF_EVAL_OBJ.push(load_text);
+
+      (window as any).UNREF_EVAL_OBJ.push(create_tp_here);
+      (window as any).UNREF_EVAL_OBJ.push(delete_tp);
+      (window as any).UNREF_EVAL_OBJ.push(ls_tps);
+      (window as any).UNREF_EVAL_OBJ.push(tp);
+
+      (window as any).UNREF_EVAL_OBJ.push(ls_objs);
+      (window as any).UNREF_EVAL_OBJ.push(get_obj_pos);
+      (window as any).UNREF_EVAL_OBJ.push(get_obj_rot);
+      (window as any).UNREF_EVAL_OBJ.push(get_obj_scale);
+      (window as any).UNREF_EVAL_OBJ.push(set_obj_pos);
+      (window as any).UNREF_EVAL_OBJ.push(set_obj_rot);
+      (window as any).UNREF_EVAL_OBJ.push(set_obj_scale);
+      (window as any).UNREF_EVAL_OBJ.push(edit_obj);
+      (window as any).UNREF_EVAL_OBJ.push(override_mat);
+      (window as any).UNREF_EVAL_OBJ.push(reset_mat);
+      (window as any).UNREF_EVAL_OBJ.push(exit_edit);
+      (window as any).UNREF_EVAL_OBJ.push(set_speed);
+      (window as any).UNREF_EVAL_OBJ.push(get_speed);
 
       set_running_command(false);
       if (_do_clear) {
@@ -426,13 +768,36 @@ const Sector = () => {
 
       <div
         style={{
+          position: "absolute",
+          zIndex: 10,
+          transform: utils.doc.is_mobile() ? "rotate(90deg)" : undefined,
+          transformOrigin: utils.doc.is_mobile() ? "top right" : undefined,
+          right: utils.doc.is_mobile() ? 0 : 10,
+          ...(utils.doc.is_mobile()
+            ? {
+                bottom: -10,
+              }
+            : {
+                top: 0,
+              }),
+        }}
+      >
+        <components.layout.text.Text
+          font="MONO"
+          size="LARGE"
+          manual={info_text_ref}
+        />
+      </div>
+
+      <div
+        style={{
           position: "fixed",
           top: 0,
           left: 0,
           width: "100vw",
           height: "100vh",
           backgroundColor: "#000000AA",
-          zIndex: 9999,
+          zIndex: 20,
           pointerEvents: "auto",
           visibility: command_overlay ? "visible" : "hidden",
         }}
@@ -485,6 +850,7 @@ const Sector = () => {
                 }
                 on_enter={running_command ? undefined : process_command}
                 font="MONO"
+                bare
               />
             </components.layout.stack.Cell>
           </components.layout.stack.Stack>
