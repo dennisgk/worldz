@@ -43,6 +43,8 @@ class Sector {
   }>;
   #tps: { [name: string]: { x: number; y: number; z: number } };
   #last_pos: { x: number; y: number; z: number };
+  #ground_width: number;
+  #ground_height: number;
 
   constructor(
     width: number,
@@ -58,6 +60,8 @@ class Sector {
     this.#connections = [];
     this.#tps = {};
     this.#last_pos = { x: 0, y: 2, z: 5 };
+    this.#ground_width = 100;
+    this.#ground_height = 100;
 
     // save open readme
     this.#open_readme = open_readme;
@@ -112,13 +116,20 @@ class Sector {
 
     // Ground
     const ground_collider = this.#world.createCollider(
-      deps.rapier.ColliderDesc.cuboid(50, 0.5, 50).setTranslation(0, 0, 0)
+      deps.rapier.ColliderDesc.cuboid(
+        this.#ground_width / 2,
+        0.5,
+        this.#ground_height / 2
+      ).setTranslation(0, 0, 0)
     );
     ground_collider.setFriction(1);
     ground_collider.setRestitution(0);
 
     // ground to three
-    const groundGeo = new deps.three.PlaneGeometry(100, 100);
+    const groundGeo = new deps.three.PlaneGeometry(
+      this.#ground_width,
+      this.#ground_height
+    );
     const groundMat = new deps.three.ShaderMaterial({
       uniforms: {},
       vertexShader: `
@@ -199,7 +210,11 @@ class Sector {
       this.#camera,
       this.#renderer.domElement
     );
-    this.#controls.enabled = true;
+    if (utils.doc.is_mobile()) {
+      this.#controls.enabled = false;
+    } else {
+      this.#controls.enabled = true;
+    }
 
     this.#edit_obj = undefined;
     this.#edit_controls = new deps.three_addons.OrbitControls(
@@ -240,18 +255,27 @@ class Sector {
         const closestA = new deps.three.Vector3();
         const closestB = new deps.three.Vector3();
 
-        const box1 = new deps.three.Box3().setFromObject(this.#objects[this.#connections[i].name1].local);
-        const box2 = new deps.three.Box3().setFromObject(this.#objects[this.#connections[i].name2].local);
+        const box1 = new deps.three.Box3().setFromObject(
+          this.#objects[this.#connections[i].name1].local
+        );
+        const box2 = new deps.three.Box3().setFromObject(
+          this.#objects[this.#connections[i].name2].local
+        );
 
         box1.clampPoint(box2.getCenter(new deps.three.Vector3()), closestA); // closest on box1 to center of box2
         box2.clampPoint(box1.getCenter(new deps.three.Vector3()), closestB); // closest on box2 to center of box1
 
         const closdir = new deps.three.Vector3().subVectors(closestA, closestB);
         const length = closdir.length();
-        const midpoint = new deps.three.Vector3().addVectors(closestA, closestB).multiplyScalar(0.5);
+        const midpoint = new deps.three.Vector3()
+          .addVectors(closestA, closestB)
+          .multiplyScalar(0.5);
 
         const up = new deps.three.Vector3(0, 1, 0);
-        const quaternion = new deps.three.Quaternion().setFromUnitVectors(up, closdir.clone().normalize());
+        const quaternion = new deps.three.Quaternion().setFromUnitVectors(
+          up,
+          closdir.clone().normalize()
+        );
         this.#connections[i].local.setRotationFromQuaternion(quaternion);
         this.#connections[i].local.position.copy(midpoint);
         this.#connections[i].local.scale.set(1, length, 1);
@@ -316,16 +340,17 @@ class Sector {
         if (utils.doc.is_mobile()) {
           if (this.#flying_speed.up - this.#flying_speed.down !== 0) {
             this.#edit_controls.avoidControlsWorldz = true;
-          }
-          else {
+          } else {
             this.#edit_controls.avoidControlsWorldz = false;
           }
         }
         this.#edit_controls.update();
         if (utils.doc.is_mobile()) {
-          this.#camera.rotateOnAxis(new deps.three.Vector3(0, 0, 1), Math.PI / 2);
+          this.#camera.rotateOnAxis(
+            new deps.three.Vector3(0, 0, 1),
+            Math.PI / 2
+          );
         }
-
       } else {
         // Apply movement
         direction
@@ -373,8 +398,8 @@ class Sector {
           vel.x * (1 - damping * dt),
           this.#is_flying
             ? (-this.#world.gravity.y * dt * 5) / 7 +
-            this.#flying_speed.up -
-            this.#flying_speed.down
+              this.#flying_speed.up -
+              this.#flying_speed.down
             : vel.y * (1 - damping_y * dt),
           vel.z * (1 - damping * dt)
         );
@@ -414,7 +439,8 @@ class Sector {
                 this.#object_contains(
                   this.#objects[obj_name].local,
                   intersects[i].object
-                )
+                ) &&
+                intersects[i].distance <= 6
               ) {
                 keep_highlight = true;
                 break;
@@ -432,7 +458,8 @@ class Sector {
                 !this.#object_contains(
                   this.#objects[obj_name].local,
                   intersects[i].object
-                )
+                ) ||
+                intersects[i].distance > 6
               )
                 continue;
 
@@ -472,10 +499,10 @@ class Sector {
           `${this.#is_flying ? "f" : ""}(${this.#player_rigid_body
             .translation()
             .x.toFixed(1)},${this.#player_rigid_body
-              .translation()
-              .y.toFixed(1)},${this.#player_rigid_body
-                .translation()
-                .z.toFixed(1)})`
+            .translation()
+            .y.toFixed(1)},${this.#player_rigid_body
+            .translation()
+            .z.toFixed(1)})`
         );
 
         // Sync camera to capsule
@@ -515,16 +542,16 @@ class Sector {
   }
 
   ls_connects() {
-    return this.#connections.map(v => `${v.name1} --- ${v.name2}`);
+    return this.#connections.map((v) => `${v.name1} --- ${v.name2}`);
   }
 
   click() {
     if (this.#edit_obj !== undefined) return;
 
     let filt: undefined | string = undefined;
-    for(let i = 0; i < Object.keys(this.#objects).length; i++){
+    for (let i = 0; i < Object.keys(this.#objects).length; i++) {
       let k = Object.keys(this.#objects)[i];
-      if(this.#objects[k].local_highlight !== undefined){
+      if (this.#objects[k].local_highlight !== undefined) {
         filt = k;
         break;
       }
@@ -532,31 +559,45 @@ class Sector {
 
     if (filt === undefined) return;
 
-    try{
+    try {
       this.#controls.unlock();
-    }catch{}
+    } catch {}
     this.#open_readme(filt);
   }
 
   connect(name1: string, name2: string) {
     if (name1 === name2) return ["Can not connect to self"];
-    if (!(name1 in this.#objects && name2 in this.#objects)) return ["Not present"];
-    if (this.#connections.some(v => (v.name1 === name1 && v.name2 === name2) || (v.name1 === name2 && v.name2 === name1))) return ["Already exists"];
+    if (!(name1 in this.#objects && name2 in this.#objects))
+      return ["Not present"];
+    if (
+      this.#connections.some(
+        (v) =>
+          (v.name1 === name1 && v.name2 === name2) ||
+          (v.name1 === name2 && v.name2 === name1)
+      )
+    )
+      return ["Already exists"];
 
     const radius = 0.05;
 
     const closestA = new deps.three.Vector3();
     const closestB = new deps.three.Vector3();
 
-    const box1 = new deps.three.Box3().setFromObject(this.#objects[name1].local);
-    const box2 = new deps.three.Box3().setFromObject(this.#objects[name2].local);
+    const box1 = new deps.three.Box3().setFromObject(
+      this.#objects[name1].local
+    );
+    const box2 = new deps.three.Box3().setFromObject(
+      this.#objects[name2].local
+    );
 
     box1.clampPoint(box2.getCenter(new deps.three.Vector3()), closestA); // closest on box1 to center of box2
     box2.clampPoint(box1.getCenter(new deps.three.Vector3()), closestB); // closest on box2 to center of box1
 
     const direction = new deps.three.Vector3().subVectors(closestA, closestB);
     let length = direction.length();
-    const midpoint = new deps.three.Vector3().addVectors(closestA, closestB).multiplyScalar(0.5);
+    const midpoint = new deps.three.Vector3()
+      .addVectors(closestA, closestB)
+      .multiplyScalar(0.5);
 
     const glowMaterial = new deps.three.MeshBasicMaterial({
       color: 0x00ffff,
@@ -571,7 +612,10 @@ class Sector {
 
     // Align with direction
     const up = new deps.three.Vector3(0, 1, 0); // Capsule is vertical by default
-    const quaternion = new deps.three.Quaternion().setFromUnitVectors(up, direction.clone().normalize());
+    const quaternion = new deps.three.Quaternion().setFromUnitVectors(
+      up,
+      direction.clone().normalize()
+    );
     mesh.setRotationFromQuaternion(quaternion);
 
     mesh.position.copy(midpoint);
@@ -581,19 +625,23 @@ class Sector {
     this.#connections.push({
       name1: name1,
       name2: name2,
-      local: mesh
+      local: mesh,
     });
 
     return ["Connected"];
   }
 
   disconnect(name1: string, name2: string) {
-    let removed = this.#connections.filter(v => ((v.name1 === name1 && v.name2 === name2) || (v.name1 === name2 && v.name2 === name1)));
+    let removed = this.#connections.filter(
+      (v) =>
+        (v.name1 === name1 && v.name2 === name2) ||
+        (v.name1 === name2 && v.name2 === name1)
+    );
 
     if (removed.length < 1) return ["Does not exist"];
 
-    removed.forEach(v => this.#scene.remove(v.local));
-    this.#connections = this.#connections.filter(v => !removed.includes(v));
+    removed.forEach((v) => this.#scene.remove(v.local));
+    this.#connections = this.#connections.filter((v) => !removed.includes(v));
     return ["Disconnected"];
   }
 
@@ -686,10 +734,11 @@ class Sector {
       loader: deps.three.Loader,
       clone: (grp: deps.three.Group) => any
     ) => {
-      let url = `${utils.asite.PY_BACKEND
-        }/api/obj_file?folder=${encodeURIComponent(
-          folder
-        )}&name=${encodeURIComponent(name)}&file=${encodeURIComponent(file)}`;
+      let url = `${
+        utils.asite.PY_BACKEND
+      }/api/obj_file?folder=${encodeURIComponent(
+        folder
+      )}&name=${encodeURIComponent(name)}&file=${encodeURIComponent(file)}`;
 
       if (!this.#cache.has(url)) {
         await new Promise<void>((resolve, reject) =>
@@ -912,21 +961,24 @@ class Sector {
 
   get_obj_pos(name: string) {
     return [
-      `(${this.#objects[name].local.position.x},${this.#objects[name].local.position.y
+      `(${this.#objects[name].local.position.x},${
+        this.#objects[name].local.position.y
       },${this.#objects[name].local.position.z})`,
     ];
   }
 
   get_obj_rot(name: string) {
     return [
-      `(${(this.#objects[name].local.rotation.x * 180) / Math.PI},${(this.#objects[name].local.rotation.y * 180) / Math.PI
+      `(${(this.#objects[name].local.rotation.x * 180) / Math.PI},${
+        (this.#objects[name].local.rotation.y * 180) / Math.PI
       },${(this.#objects[name].local.rotation.z * 180) / Math.PI})`,
     ];
   }
 
   get_obj_scale(name: string) {
     return [
-      `(${this.#objects[name].local.scale.x},${this.#objects[name].local.scale.y
+      `(${this.#objects[name].local.scale.x},${
+        this.#objects[name].local.scale.y
       },${this.#objects[name].local.scale.z})`,
     ];
   }
@@ -952,7 +1004,7 @@ class Sector {
 
     try {
       this.#controls.unlock();
-    } catch { }
+    } catch {}
     this.#controls.enabled = false;
     this.#is_flying = true;
     this.#edit_obj = name;
@@ -979,7 +1031,42 @@ class Sector {
     this.#is_flying = false;
     this.#edit_obj = undefined;
     this.#edit_controls.enabled = false;
-    this.#controls.enabled = true;
+    if (!utils.doc.is_mobile()) {
+      this.#controls.enabled = true;
+    }
+  }
+
+  get_id() {
+    return this.#id;
+  }
+
+  delete_local_obj(name: string) {
+    if (!(name in this.#objects)) return;
+
+    this.#scene.remove(this.#objects[name].local);
+    if (this.#objects[name].local_highlight !== undefined) {
+      this.#scene.remove(this.#objects[name].local_highlight);
+    }
+    delete this.#objects[name];
+
+    let rem_conn = this.#connections.filter(
+      (v) => v.name1 === name || v.name2 === name
+    );
+    for (let i = 0; i < rem_conn.length; i++) {
+      this.#scene.remove(rem_conn[i].local);
+    }
+    this.#connections = this.#connections.filter((v) => !rem_conn.includes(v));
+  }
+
+  get_ground_size() {
+    return `${this.#ground_width} ${this.#ground_height}`;
+  }
+
+  set_ground_size(width: number, height: number) {
+    if (width <= 0 || height <= 0) return;
+
+    this.#ground_width = width;
+    this.#ground_height = height;
   }
 
   #create_player(world: deps.rapier.World, x: number, y: number, z: number) {

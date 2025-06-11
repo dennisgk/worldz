@@ -22,6 +22,7 @@ const Textbox = (props: TextboxProps) => {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && props.on_enter) {
+      e.preventDefault();
       props.on_enter();
     }
   };

@@ -2,9 +2,7 @@ import { components, deps, types } from "../../meta";
 
 type TextButtonProps = types.react.StringChildrenProps & {
   href?: string | undefined;
-  on_click?:
-    | types.general.Handler<types.react.MouseEvent<HTMLAnchorElement>>
-    | undefined;
+  on_click?: types.general.Handler | undefined;
   ring?: types.layout.Ring | undefined;
   floating?: deps.floating.FloatingClickProps | undefined;
 };
@@ -12,7 +10,7 @@ type TextButtonProps = types.react.StringChildrenProps & {
 const TextButton = (props: TextButtonProps) => (
   <components.layout.simple_button.SimpleButton
     ring={props.ring ?? "HOVER"}
-    on_click={props.on_click}
+    on_click={props.on_click as any}
     href={props.href}
     background="LEVEL"
     floating={props.floating}

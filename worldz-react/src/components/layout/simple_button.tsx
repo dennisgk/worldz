@@ -16,7 +16,7 @@ const SimpleButton = (props: SimpleButtonProps) => {
 
   return (
     <a
-      href={props.href ?? "about:blank"}
+      href={props.href}
       className={[
         "grow",
         "flex",
@@ -30,12 +30,30 @@ const SimpleButton = (props: SimpleButtonProps) => {
           components.layout.level.get_ascend(level)
         ),
       ].join_class_name()}
-      onClick={(ev) => {
-        ev.preventDefault();
-        props.on_click?.(ev);
-        if (props.floating !== undefined && "onClick" in props.floating.props)
-          (props.floating.props.onClick as any)(ev);
-      }}
+      {...(utils.doc.is_mobile()
+        ? {
+            onTouchEnd: (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              props.on_click?.(ev as any);
+              if (
+                props.floating !== undefined &&
+                "onClick" in props.floating.props
+              )
+                (props.floating.props.onClick as any)(ev);
+            },
+          }
+        : {
+            onClick: (ev) => {
+              ev.preventDefault();
+              props.on_click?.(ev);
+              if (
+                props.floating !== undefined &&
+                "onClick" in props.floating.props
+              )
+                (props.floating.props.onClick as any)(ev);
+            },
+          })}
       {...(props.floating === undefined
         ? {}
         : utils.general.omit(props.floating.props, "onClick"))}
