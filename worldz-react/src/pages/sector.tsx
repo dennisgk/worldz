@@ -1,6 +1,6 @@
 import { deps, utils, components, types } from "../meta";
 
-const Sector = () => {
+const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) => {
   const mount_ref = utils.react.use_ref<HTMLDivElement>(null);
   const joystick_ref = utils.react.use_ref<HTMLDivElement>(null);
   const [command_overlay, set_command_overlay] = utils.react.use_state(false);
@@ -27,6 +27,22 @@ const Sector = () => {
   const mobile_pitch = utils.react.use_ref(0);
   const mobile_yaw = utils.react.use_ref(0);
 
+  const ex_open_readme = (name: string) => {
+    let txt = (sector.current.get_readme(name) ?? "").split(/^#!\/worldz\/sector\r?\n/g);
+    if (txt.length === 1) {
+      if (!command_overlay) {
+        sector.current.unlock();
+      }
+      set_opening_readme(name);
+    }
+
+    if (txt.length === 2) {
+      process_command(`let user_comm = async() => {
+          ${txt[1]}
+        }; user_comm();`, false);
+    }
+  };
+
   utils.react.use_effect(() => {
     if (mount_ref.current == null) return;
 
@@ -41,13 +57,30 @@ const Sector = () => {
         if (info_text_ref.current === null) return;
         info_text_ref.current.innerText = text;
       },
-      (name) => {
-        set_opening_readme(name);
-      }
+      props.init_info,
+      props.id
     );
 
-    return () => sector.current.deconstruct();
+    utils.doc.enable_leave_prompt();
+
+    if(utils.doc.is_mobile()){
+      let rot = sector.current.get_camera_rot();
+      mobile_yaw.current = -rot[0];
+      mobile_pitch.current = rot[1];
+    }
+
+    return () => {
+      sector.current.deconstruct();
+      utils.doc.disable_leave_prompt();
+    }
   }, []);
+
+  utils.react.use_effect(() => {
+    sector.current.open_readme =
+      (name) => {
+        ex_open_readme(name);
+      };
+  }, [command_history, command_overlay]);
 
   utils.react.use_effect(() => {
     if (editing_readme !== undefined) {
@@ -86,7 +119,7 @@ const Sector = () => {
           const angle = Math.atan2(data.vector.y, data.vector.x);
           sector.current.move.forward = Math.cos(angle);
           sector.current.move.right = -Math.sin(angle);
-          sector.current.speed_mult = magnitude;
+          sector.current.speed_mult = magnitude * magnitude;
         }
       });
 
@@ -117,16 +150,8 @@ const Sector = () => {
         lastTapTime = now;
       });
     }
-  }, []);
 
-  utils.react.use_effect(() => {
-    if (command_overlay) {
-      document.getElementById("command_textbox")?.focus();
-    }
-
-    if (mount_ref.current == null) return;
-
-    if (!utils.doc.is_mobile()) {
+    if (!utils.doc.is_mobile() && mount_ref.current) {
       mount_ref.current.addEventListener("click", (e) =>
         utils
           .pipe<1>()
@@ -136,7 +161,17 @@ const Sector = () => {
           .ex()
           .nov()
       );
+
+
     }
+  }, []);
+
+  utils.react.use_effect(() => {
+    if (command_overlay) {
+      document.getElementById("command_textbox")?.focus();
+    }
+
+    if (mount_ref.current == null) return;
 
     // Desktop keyboard
     const onKeyDown = (e: KeyboardEvent) =>
@@ -145,62 +180,62 @@ const Sector = () => {
           ? set_command_overlay(false)
           : undefined
         : e.code === "KeyE"
-        ? sector.current.toggle_fly()
-        : e.code === "Space"
-        ? sector.current.is_flying()
-          ? sector.current.fly_up()
-          : sector.current.jump()
-        : e.code === "ShiftLeft"
-        ? sector.current.is_flying()
-          ? sector.current.fly_down()
-          : undefined
-        : e.code === "KeyW"
-        ? (sector.current.move.forward = 1)
-        : e.code === "KeyS"
-        ? (sector.current.move.backward = 1)
-        : e.code === "KeyA"
-        ? (sector.current.move.left = 1)
-        : e.code === "KeyD"
-        ? (sector.current.move.right = 1)
-        : e.code === "KeyC"
-        ? utils
-            .pipe<1>()
-            .s(0, () => document.pointerLockElement !== null)
-            .g(0, (_) => (_ ? document.exitPointerLock() : undefined))
-            .no(() => e.preventDefault())
-            .no(
-              () =>
-                (sector.current.move = {
-                  forward: 0,
-                  backward: 0,
-                  left: 0,
-                  right: 0,
-                })
-            )
-            .no(() => set_command_overlay(true))
-            .ex()
-            .nov()
-        : undefined;
+          ? sector.current.toggle_fly()
+          : e.code === "Space"
+            ? sector.current.is_flying()
+              ? sector.current.fly_up()
+              : sector.current.jump()
+            : e.code === "ShiftLeft"
+              ? sector.current.is_flying()
+                ? sector.current.fly_down()
+                : undefined
+              : e.code === "KeyW"
+                ? (sector.current.move.forward = 1)
+                : e.code === "KeyS"
+                  ? (sector.current.move.backward = 1)
+                  : e.code === "KeyA"
+                    ? (sector.current.move.left = 1)
+                    : e.code === "KeyD"
+                      ? (sector.current.move.right = 1)
+                      : e.code === "KeyC"
+                        ? utils
+                          .pipe<1>()
+                          .s(0, () => document.pointerLockElement !== null)
+                          .g(0, (_) => (_ ? document.exitPointerLock() : undefined))
+                          .no(() => e.preventDefault())
+                          .no(
+                            () =>
+                            (sector.current.move = {
+                              forward: 0,
+                              backward: 0,
+                              left: 0,
+                              right: 0,
+                            })
+                          )
+                          .no(() => set_command_overlay(true))
+                          .ex()
+                          .nov()
+                        : undefined;
     const onKeyUp = (e: KeyboardEvent) =>
       command_overlay
         ? undefined
         : e.code === "Space"
-        ? sector.current.is_flying()
-          ? sector.current.fly_reset_up()
-          : undefined
-        : e.code === "ShiftLeft"
-        ? sector.current.is_flying()
-          ? sector.current.fly_reset_down()
-          : undefined
-        : e.code === "KeyW"
-        ? (sector.current.move.forward = 0)
-        : e.code === "KeyS"
-        ? (sector.current.move.backward = 0)
-        : e.code === "KeyA"
-        ? (sector.current.move.left = 0)
-        : e.code === "KeyD"
-        ? (sector.current.move.right = 0)
-        : undefined;
+          ? sector.current.is_flying()
+            ? sector.current.fly_reset_up()
+            : undefined
+          : e.code === "ShiftLeft"
+            ? sector.current.is_flying()
+              ? sector.current.fly_reset_down()
+              : undefined
+            : e.code === "KeyW"
+              ? (sector.current.move.forward = 0)
+              : e.code === "KeyS"
+                ? (sector.current.move.backward = 0)
+                : e.code === "KeyA"
+                  ? (sector.current.move.left = 0)
+                  : e.code === "KeyD"
+                    ? (sector.current.move.right = 0)
+                    : undefined;
     if (!utils.doc.is_mobile()) {
       window.addEventListener("keydown", onKeyDown);
       window.addEventListener("keyup", onKeyUp);
@@ -222,7 +257,7 @@ const Sector = () => {
       let dragRealStartX = 0;
       let dragRealStartY = 0;
       const TAP_THRESHOLD = 0;
-      const DOUBLE_TAP_DELAY = 250;
+      const DOUBLE_TAP_DELAY = 300;
       const TAP_FLY_DEAD_ZONE = 15;
 
       let on_touch_start = (e: any) => {
@@ -381,8 +416,8 @@ const Sector = () => {
     }
   }, [command_overlay, opening_readme]);
 
-  const process_command = () => {
-    if (command_value.trim() == "") {
+  const process_command = (cmd_val: string, is_run_by_user: boolean = true) => {
+    if (cmd_val.trim() === "" && is_run_by_user) {
       set_command_value("");
       return;
     }
@@ -412,10 +447,12 @@ const Sector = () => {
 
     let prom = async () => {
       const help = async () => [
+        "typically -> string[]",
         "help()",
         "clear()",
         "close()",
         "set_name(name)",
+        "get_name() -> scripting? string",
         "ls(folder?)",
         "delete_obj(folder, name)",
         "upload_gltf_glb(folder, name)",
@@ -428,9 +465,9 @@ const Sector = () => {
         "ls_tps()",
         "tp(name)",
         "ls_objs()",
-        "get_obj_pos(name)",
-        "get_obj_rot(name)",
-        "get_obj_scale(name)",
+        "get_obj_pos(name) -> scripting? [number, number, number]",
+        "get_obj_rot(name) -> scripting? [number, number, number]",
+        "get_obj_scale(name) -> scripting? [number, number, number]",
         "set_obj_pos(name, x, y, z)",
         "set_obj_rot(name, x, y, z)",
         "set_obj_scale(name, x, y, z)",
@@ -439,16 +476,21 @@ const Sector = () => {
         "reset_mat(name)",
         "exit_edit()",
         "set_speed(num)",
-        "get_speed()",
+        "get_speed() -> scripting? number",
         "edit_readme(name)",
         "open_readme(name)",
-        "ls_connects()",
+        "ls_connects() -> scripting? [string, string][]",
         "connect(name1, name2)",
         "disconnect(name1, name2)",
         "delete_local_obj(name)",
-        "get_id()",
-        "get_ground_size()",
+        "get_id() -> scripting? string",
+        "get_ground_size() -> scripting? [number, number]",
         "set_ground_size(width, height)",
+        "ls_cust_vars()",
+        "get_cust_var(name) -> scripting? any",
+        "set_cust_var(name, value)",
+        "delete_cust_var(name)",
+        "save()",
       ];
 
       let _do_clear = false;
@@ -460,8 +502,11 @@ const Sector = () => {
 
       const close = async () => {
         set_command_overlay(false);
+        sector.current.lock();
         return [];
       };
+
+      const get_name = async () => command_overlay ? [sector.current.get_name()] : sector.current.get_name();
 
       const set_name = async (name: string) => {
         if (name === undefined) {
@@ -504,8 +549,7 @@ const Sector = () => {
         if (
           (
             await fetch(
-              `${
-                utils.asite.PY_BACKEND
+              `${utils.asite.PY_BACKEND
               }/api/delete_obj?folder=${encodeURIComponent(
                 folder
               )}&name=${encodeURIComponent(name)}`,
@@ -527,8 +571,7 @@ const Sector = () => {
         if (args.length === 1)
           return await (
             await fetch(
-              `${
-                utils.asite.PY_BACKEND
+              `${utils.asite.PY_BACKEND
               }/api/folder_objs?folder=${encodeURIComponent(args[0])}`
             )
           ).json();
@@ -582,19 +625,9 @@ const Sector = () => {
           return ["Argument error"];
         }
 
-        let desc = await (
-          await fetch(
-            `${utils.asite.PY_BACKEND}/api/obj?folder=${encodeURIComponent(
-              folder
-            )}&name=${encodeURIComponent(name)}`
-          )
-        ).json();
-
         return await sector.current.load(
           folder,
           name,
-          desc.files,
-          desc.model,
           local_name
         );
       };
@@ -642,17 +675,20 @@ const Sector = () => {
       const get_obj_pos = async (name: string) =>
         name === undefined
           ? ["Argument error"]
-          : sector.current.get_obj_pos(name);
+          : command_overlay ? sector.current.get_obj_pos_sa(name)
+            : sector.current.get_obj_pos(name);
 
       const get_obj_rot = async (name: string) =>
         name === undefined
           ? ["Argument error"]
-          : sector.current.get_obj_rot(name);
+          : command_overlay ? sector.current.get_obj_rot_sa(name)
+            : sector.current.get_obj_rot(name);
 
       const get_obj_scale = async (name: string) =>
         name === undefined
           ? ["Argument error"]
-          : sector.current.get_obj_scale(name);
+          : command_overlay ? sector.current.get_obj_scale_sa(name)
+            : sector.current.get_obj_scale(name);
 
       const set_obj_pos = async (
         name: string,
@@ -741,9 +777,7 @@ const Sector = () => {
         return ["Set"];
       };
 
-      const get_speed = async () => {
-        return [sector.current.glob_speed_mult.toString()];
-      };
+      const get_speed = async () => command_overlay ? [sector.current.glob_speed_mult.toString()] : sector.current.glob_speed_mult;
 
       const edit_readme = async (name: string) => {
         if (name === undefined) return ["Argument error"];
@@ -759,11 +793,11 @@ const Sector = () => {
       const open_readme = async (name: string) => {
         if (name === undefined) return ["Argument error"];
 
-        set_opening_readme(name);
+        ex_open_readme(name);
         return ["Opened"];
       };
 
-      const ls_connects = async () => sector.current.ls_connects();
+      const ls_connects = async () => command_overlay ? sector.current.ls_connects().map(v => `${v[0]} --- ${v[1]}`) : sector.current.ls_connects();
 
       const connect = async (name1: string, name2: string) => {
         if (name1 === undefined || name2 === undefined)
@@ -784,7 +818,7 @@ const Sector = () => {
         return ["Deleted"];
       };
 
-      const get_ground_size = async () => [sector.current.get_ground_size()];
+      const get_ground_size = async () => command_overlay ? [sector.current.get_ground_size().map(v => `${v}`).join(" ")] : sector.current.get_ground_size();
 
       const set_ground_size = async (width: number, height: number) => {
         if (width === undefined || height === undefined) {
@@ -797,22 +831,57 @@ const Sector = () => {
 
       const get_id = async () => [sector.current.get_id()];
 
-      let out_val: Array<string> = [];
+      const ls_cust_vars = async () => sector.current.ls_cust_vars();
+
+      const get_cust_var = async (name: string) => {
+        if (name === undefined) {
+          return ["Argument error"];
+        }
+
+        if (command_overlay) {
+          return [`${sector.current.get_cust_var(name)}`]
+        }
+        else {
+          return sector.current.get_cust_var(name);
+        }
+      }
+
+      const set_cust_var = async (name: string, value: any) => {
+        if (name === undefined || value === undefined) {
+          return ["Argument error"];
+        }
+
+        sector.current.set_cust_var(name, value);
+        return ["Set"];
+      }
+
+      const delete_cust_var = async (name: string) => {
+        if (name === undefined) {
+          return ["Argument error"];
+        }
+
+        sector.current.delete_cust_var(name);
+        return ["Deleted"];
+      }
+
+      const save = async() => await sector.current.save();
+
+      let _out_val: Array<string> = [];
 
       try {
-        out_val = await eval(command_value);
+        _out_val = await eval(cmd_val);
 
         if (
           !(
-            Array.isArray(out_val) &&
-            out_val.every((item) => typeof item === "string")
+            Array.isArray(_out_val) &&
+            _out_val.every((item) => typeof item === "string")
           )
         ) {
-          out_val = ["Wrong type"];
+          _out_val = ["Wrong type"];
         }
       } catch (err) {
         console.error(err);
-        out_val = ["Error"];
+        _out_val = ["Error", (err as any).toString()];
       }
 
       (window as any).UNREF_EVAL_OBJ = [];
@@ -821,6 +890,7 @@ const Sector = () => {
       (window as any).UNREF_EVAL_OBJ.push(clear);
       (window as any).UNREF_EVAL_OBJ.push(close);
 
+      (window as any).UNREF_EVAL_OBJ.push(get_name);
       (window as any).UNREF_EVAL_OBJ.push(set_name);
       (window as any).UNREF_EVAL_OBJ.push(ls);
       (window as any).UNREF_EVAL_OBJ.push(delete_obj);
@@ -861,18 +931,26 @@ const Sector = () => {
       (window as any).UNREF_EVAL_OBJ.push(get_ground_size);
       (window as any).UNREF_EVAL_OBJ.push(set_ground_size);
 
+      (window as any).UNREF_EVAL_OBJ.push(ls_cust_vars);
+      (window as any).UNREF_EVAL_OBJ.push(get_cust_var);
+      (window as any).UNREF_EVAL_OBJ.push(set_cust_var);
+      (window as any).UNREF_EVAL_OBJ.push(delete_cust_var);
+      (window as any).UNREF_EVAL_OBJ.push(save);
+
       set_running_command(false);
       if (_do_clear) {
         set_command_history([]);
       } else {
-        set_command_history([...command_history, [command_value, out_val]]);
+        set_command_history([...command_history, [cmd_val, _out_val]]);
       }
     };
 
     set_running_command(true);
     prom();
 
-    set_command_value("");
+    if (is_run_by_user) {
+      set_command_value("");
+    }
   };
 
   return (
@@ -901,11 +979,11 @@ const Sector = () => {
           right: utils.doc.is_mobile() ? 0 : 10,
           ...(utils.doc.is_mobile()
             ? {
-                bottom: -10,
-              }
+              bottom: -10,
+            }
             : {
-                top: 0,
-              }),
+              top: 0,
+            }),
         }}
       >
         <components.layout.text.Text
@@ -954,6 +1032,9 @@ const Sector = () => {
                 <components.layout.level.Ascend>
                   <components.asite.text_button.TextButton
                     on_click={() => {
+                      if (!command_overlay) {
+                        sector.current.lock();
+                      }
                       set_opening_readme(undefined);
                     }}
                   >
@@ -1001,7 +1082,19 @@ const Sector = () => {
                     "font-mono",
                   ].join_class_name()}
                   value={editing_readme_val}
-                  onChange={(e) => set_editing_readme_val(e.target.value)}
+                  onChange={(e) => set_editing_readme_val(e.target.value
+                    .replace(/[\u2013\u2014\u2010]/g, "-")         // dashes/hyphen
+                    .replace(/[\u2018\u2019]/g, "'")               // single quotes
+                    .replace(/[\u201C\u201D]/g, '"')               // double quotes
+                    .replace(/\u2026/g, "...")                     // ellipsis
+                    .replace(/\u00A0/g, " ")                       // non-breaking space
+                    .replace(/\u2039/g, "<")               // angle quotes
+                    .replace(/\u203A/g, ">")               // angle quotes
+                    .replace(/\u00AB/g, "<<")               // angle quotes
+                    .replace(/\u00BB/g, ">>")               // angle quotes
+                    .replace(/[\u201E\u201F]/g, '"')               // alt double quotes
+                    .replace(/\u2032/g, "'") // single prime
+                    .replace(/\u2033/g, "\""))} // double prime
                 />
               </components.layout.scrollable.Scrollable>
             </components.layout.stack.Cell>
@@ -1022,12 +1115,12 @@ const Sector = () => {
                       on_click={
                         editing_readme !== undefined
                           ? () => {
-                              sector.current.set_readme(
-                                editing_readme,
-                                editing_readme_val
-                              );
-                              set_editing_readme(undefined);
-                            }
+                            sector.current.set_readme(
+                              editing_readme,
+                              editing_readme_val
+                            );
+                            set_editing_readme(undefined);
+                          }
                           : undefined
                       }
                     >
@@ -1100,7 +1193,7 @@ const Sector = () => {
                     ? undefined
                     : (e) => set_command_value(e.target.value)
                 }
-                on_enter={running_command ? undefined : process_command}
+                on_enter={running_command ? undefined : () => process_command(command_value)}
                 font="MONO"
                 bare
               />
@@ -1110,6 +1203,31 @@ const Sector = () => {
       </div>
     </div>
   );
+};
+
+const Sector = () => {
+  const [search_params, _set_search_params] = deps.router.use_search_params();
+  const navigate = deps.router.use_navigate();
+
+  const query_sector = deps.query.use_query({
+    queryKey: ["query_sector", search_params.get("id")],
+    queryFn: utils
+      .pipe<2>()
+      .s(1, () => search_params.get("id"))
+      .g(1, v => v === null ? navigate("/") : undefined)
+      .gsa(1, 0, async v => v === null ? undefined : await fetch(`${utils.asite.PY_BACKEND}/api/sector?id=${encodeURIComponent(v)}`))
+      .gsa(0, 0, async (v) => v === undefined ? undefined : (await v.json()) as types.sector.SectorDesc)
+      .ex()
+      .vc(0),
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+    refetchInterval: false,
+    gcTime: 0,
+    placeholderData: undefined,
+  });
+
+  return query_sector.data === undefined ? <></> : <SectorActual init_info={query_sector.data} id={search_params.get("id")!} />
 };
 
 export { Sector };

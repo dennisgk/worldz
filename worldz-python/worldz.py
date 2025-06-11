@@ -7,14 +7,11 @@ _SECTOR_DESC_JSON_PATH = "desc.json"
 
 _WORLDZ_UPLOADS_PATH = "worldz-uploads"
 
-class Sector:
-    def __init__(self, sector_path: pathlib.Path):
-        with open(sector_path.joinpath(_SECTOR_DESC_JSON_PATH)) as f:
-            data = json.load(f)
-            self.name = data["name"]
-            self.objects = data["objects"]
-
 class Worldz:
+    def _load_sector(self, sector_path):
+        with open(sector_path.joinpath(_SECTOR_DESC_JSON_PATH)) as f:
+            return json.load(f)
+    
     def __init__(self):
         self.data_path = pathlib.Path(__file__).parent.joinpath(_WORLDZ_DATA_PATH)
         self.uploads_path = pathlib.Path(__file__).parent.joinpath(_WORLDZ_UPLOADS_PATH)
@@ -25,9 +22,13 @@ class Worldz:
             if not path.is_dir():
                 continue
 
-            sectors.update(dict([(path.name, Sector(path))]))
+            sectors.update(dict([(path.name, self._load_sector(path))]))
 
         return sectors
+    
+    def write_sector(self, id, val):
+        with open(self.data_path.joinpath(id).joinpath(_SECTOR_DESC_JSON_PATH), "w") as f:
+            json.dump(val, f)
     
     def get_obj(self, folder, name):
         with open(self.uploads_path.joinpath(folder).joinpath(f"{name}.json")) as f:

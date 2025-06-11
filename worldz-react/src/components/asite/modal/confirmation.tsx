@@ -2,12 +2,8 @@ import { components, types } from "../../../meta";
 
 type ConfirmationProps = {
   prompt: string;
-  on_click_yes: types.general.Handler<
-    types.react.MouseEvent<HTMLAnchorElement>
-  >;
-  on_click_cancel: types.general.Handler<
-    types.react.MouseEvent<HTMLAnchorElement>
-  >;
+  on_click_yes: types.general.Handler;
+  on_click_cancel: types.general.Handler;
 };
 
 const Confirmation = (props: ConfirmationProps) => (

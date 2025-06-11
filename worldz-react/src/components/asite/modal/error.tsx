@@ -2,9 +2,7 @@ import { components, types } from "../../../meta";
 
 type ErrorProps = {
   error: string;
-  on_click_cancel: types.general.Handler<
-    types.react.MouseEvent<HTMLAnchorElement>
-  >;
+  on_click_cancel: types.general.Handler;
 };
 
 const Error = (props: ErrorProps) => (

@@ -2,9 +2,7 @@ import { components, types } from "../../../meta";
 
 type InfoProps = {
   info: Array<{ prop: string; val: string }> | string;
-  on_click_cancel: types.general.Handler<
-    types.react.MouseEvent<HTMLAnchorElement>
-  >;
+  on_click_cancel: types.general.Handler;
 };
 
 const Info = (props: InfoProps) => (

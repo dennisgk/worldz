@@ -13,9 +13,7 @@ class Sector {
   #player_collider: deps.rapier.Collider;
   #world: deps.rapier.World;
 
-  #open_readme: (name: string) => void;
-
-  glob_speed_mult: number;
+  open_readme: (name: string) => void;
 
   #text_font: deps.three_addons.Font;
 
@@ -26,15 +24,16 @@ class Sector {
   #is_flying: boolean;
   #flying_speed: { up: number; down: number };
 
+  // save all here including speed mult
   #id: string;
   #name: string;
   #objects: {
     [name: string]: {
       local: deps.three.Object3D;
       local_highlight: undefined | deps.three.Object3D;
-      mat: null | number;
       readme: string;
-    };
+      mat: number | null;
+    } & ({ type: "TEXT", text: string } | { type: "LOAD", folder: string, name: string });
   };
   #connections: Array<{
     local: deps.three.Object3D;
@@ -43,28 +42,35 @@ class Sector {
   }>;
   #tps: { [name: string]: { x: number; y: number; z: number } };
   #last_pos: { x: number; y: number; z: number };
+  #last_rot: { x: number; y: number; z: number };
   #ground_width: number;
   #ground_height: number;
+  #cust_vars: { [name: string]: any };
+  glob_speed_mult: number;
 
   constructor(
     width: number,
     height: number,
     append_element: (elem: HTMLCanvasElement) => void,
     update_info: (val: string) => void,
-    open_readme: (name: string) => void
+    init_info: types.sector.SectorDesc,
+    init_id: string
   ) {
     // create default things passed
-    this.#id = "SCENE_ID";
-    this.#name = "SCENE_NAME";
+    this.#id = init_id;
+    this.#name = init_info.name;
     this.#objects = {};
     this.#connections = [];
-    this.#tps = {};
-    this.#last_pos = { x: 0, y: 2, z: 5 };
-    this.#ground_width = 100;
-    this.#ground_height = 100;
+    this.#tps = structuredClone(init_info.tps);
+    this.#last_pos = structuredClone(init_info.last_pos);
+    this.#last_rot = structuredClone(init_info.last_rot);
+    this.#ground_width = init_info.ground_width;
+    this.#ground_height = init_info.ground_height;
+    this.#cust_vars = structuredClone(init_info.cust_vars);
 
-    // save open readme
-    this.#open_readme = open_readme;
+    this.glob_speed_mult = init_info.glob_speed_mult;
+
+    this.open_readme = () => { };
 
     // create cache
     this.#cache = new Map<string, deps.three.Group>();
@@ -87,11 +93,6 @@ class Sector {
 
     this.#scene.add(new deps.three.HemisphereLight(0xffffff, 0x444444, 1));
 
-    // Fonts
-    this.#text_font = undefined as any;
-    const font_loader = new deps.three_addons.FontLoader();
-    font_loader.load("/assets/space.json", (font) => (this.#text_font = font));
-
     // Light
     const light = new deps.three.DirectionalLight(0xffffff, 1);
     light.position.set(10, 10, 10);
@@ -103,13 +104,6 @@ class Sector {
     this.#scene.add(target);
 
     light.target = target; // required to make .lookAt work
-
-    // Add a cube
-    // const geometry = new deps.three.BoxGeometry();
-    // const material = new deps.three.MeshStandardMaterial({ color: 0x00ff00 });
-    // const cube = new deps.three.Mesh(geometry, material);
-    // cube.position.set(0, 0.5, 0);
-    // this.#scene.add(cube);
 
     // World
     this.#world = new deps.rapier.World(new deps.rapier.Vector3(0, -9.82, 0));
@@ -232,11 +226,13 @@ class Sector {
 
     this.#edit_mode = "POS";
 
+    this.#camera.rotation.set(this.#last_rot.x, this.#last_rot.y, this.#last_rot.z);
     if (utils.doc.is_mobile()) {
-      this.#camera.rotation.z = Math.PI / 2;
+      this.#camera.rotateOnAxis(
+        new deps.three.Vector3(0, 0, 1),
+        Math.PI / 2
+      );
     }
-
-    this.glob_speed_mult = 1;
 
     // Movement state
     this.move = { forward: 0, backward: 0, left: 0, right: 0 };
@@ -246,6 +242,33 @@ class Sector {
     // Main loop
     const speed = 0.9;
     this.speed_mult = 1;
+
+    // Fonts
+    this.#text_font = undefined as any;
+    const font_loader = new deps.three_addons.FontLoader();
+
+    new Promise<void>((resolve) => {
+      font_loader.load("/assets/space.json", (font) => { this.#text_font = font; resolve(); });
+    }).then(() => {
+      for (let i = 0; i < Object.keys(init_info.objects).length; i++) {
+        let cur_key = Object.keys(init_info.objects)[i];
+
+        switch (init_info.objects[cur_key].type) {
+          case "LOAD": {
+            this.load(init_info.objects[cur_key].folder, init_info.objects[cur_key].name, cur_key, init_info.objects[cur_key].readme, init_info.objects[cur_key].pos, init_info.objects[cur_key].rot, init_info.objects[cur_key].scale, init_info.objects[cur_key].mat);
+            break;
+          }
+          case "TEXT": {
+            this.load_text(init_info.objects[cur_key].text, cur_key, init_info.objects[cur_key].readme, init_info.objects[cur_key].pos, init_info.objects[cur_key].rot, init_info.objects[cur_key].scale, init_info.objects[cur_key].mat)
+            break;
+          }
+        }
+      }
+
+      for (let i = 0; i < init_info.connections.length; i++) {
+        this.connect(init_info.connections[i].name1, init_info.connections[i].name2);
+      }
+    });
 
     // Animation loop
     const animate = () => {
@@ -304,7 +327,7 @@ class Sector {
                 .clone()
                 .add(direction.multiplyScalar(5 * dt * this.glob_speed_mult))
             );
-            update_info(`p${this.get_obj_pos(this.#edit_obj)[0]}`);
+            update_info(`p${this.get_obj_pos_sa(this.#edit_obj)[0]}`);
             break;
           }
           case "ROT": {
@@ -320,7 +343,7 @@ class Sector {
                 )
             );
 
-            update_info(`r${this.get_obj_rot(this.#edit_obj)[0]}`);
+            update_info(`r${this.get_obj_rot_sa(this.#edit_obj)[0]}`);
             break;
           }
           case "SCALE": {
@@ -329,7 +352,7 @@ class Sector {
                 .clone()
                 .add(direction.multiplyScalar(0.04 * dt * this.glob_speed_mult))
             );
-            update_info(`s${this.get_obj_scale(this.#edit_obj)[0]}`);
+            update_info(`s${this.get_obj_scale_sa(this.#edit_obj)[0]}`);
             break;
           }
         }
@@ -398,8 +421,8 @@ class Sector {
           vel.x * (1 - damping * dt),
           this.#is_flying
             ? (-this.#world.gravity.y * dt * 5) / 7 +
-              this.#flying_speed.up -
-              this.#flying_speed.down
+            this.#flying_speed.up -
+            this.#flying_speed.down
             : vel.y * (1 - damping_y * dt),
           vel.z * (1 - damping * dt)
         );
@@ -499,10 +522,10 @@ class Sector {
           `${this.#is_flying ? "f" : ""}(${this.#player_rigid_body
             .translation()
             .x.toFixed(1)},${this.#player_rigid_body
-            .translation()
-            .y.toFixed(1)},${this.#player_rigid_body
-            .translation()
-            .z.toFixed(1)})`
+              .translation()
+              .y.toFixed(1)},${this.#player_rigid_body
+                .translation()
+                .z.toFixed(1)})`
         );
 
         // Sync camera to capsule
@@ -542,7 +565,7 @@ class Sector {
   }
 
   ls_connects() {
-    return this.#connections.map((v) => `${v.name1} --- ${v.name2}`);
+    return this.#connections.map((v) => [v.name1, v.name2]);
   }
 
   click() {
@@ -559,10 +582,7 @@ class Sector {
 
     if (filt === undefined) return;
 
-    try {
-      this.#controls.unlock();
-    } catch {}
-    this.#open_readme(filt);
+    this.open_readme(filt);
   }
 
   connect(name1: string, name2: string) {
@@ -645,7 +665,12 @@ class Sector {
     return ["Disconnected"];
   }
 
-  load_text(text: string, local_name: string) {
+  load_text(text: string, local_name: string,
+    init_readme: string = "",
+    init_pos: undefined | { x: number, y: number, z: number } = undefined,
+    init_rot: undefined | { x: number, y: number, z: number } = undefined,
+    init_scale: undefined | { x: number, y: number, z: number } = undefined,
+    init_mat: number | null = null) {
     const geometry = new deps.three_addons.TextGeometry(text, {
       font: this.#text_font,
       size: 1,
@@ -657,7 +682,7 @@ class Sector {
       bevelSegments: 5,
     });
 
-    const col = 0x00ff00;
+    const col = init_mat === null ? 0xFFFFFF : init_mat;
 
     const material = new deps.three.MeshStandardMaterial({ color: col });
     const mesh = new deps.three.Mesh(geometry, material);
@@ -689,14 +714,16 @@ class Sector {
 
     this.#scene.add(group);
 
-    this.#scale_me(group);
+    this.#do_prs(group, init_pos, init_rot, init_scale);
 
     let new_name = this.#get_free_name(local_name);
     this.#objects[new_name] = {
+      type: "TEXT",
       local: group,
       mat: col,
       local_highlight: undefined,
-      readme: "",
+      readme: init_readme,
+      text: text,
     };
   }
 
@@ -712,6 +739,21 @@ class Sector {
     return free_name;
   }
 
+  #do_prs(cached: any, init_pos: { x: number, y: number, z: number } | undefined, init_rot: { x: number, y: number, z: number } | undefined, init_scale: { x: number, y: number, z: number } | undefined) {
+    if (init_pos !== undefined) {
+      cached.position.set(init_pos.x, init_pos.y, init_pos.z);
+    }
+    if (init_rot !== undefined) {
+      cached.rotation.set(init_rot.x, init_rot.y, init_rot.z);
+    }
+    if (init_scale !== undefined) {
+      cached.scale.set(init_scale.x, init_scale.y, init_scale.z);
+    }
+    else {
+      this.#scale_me(cached);
+    }
+  }
+
   #scale_me(obj: deps.three.Object3D) {
     obj.updateMatrixWorld(true);
     let box = new deps.three.Box3().setFromObject(obj);
@@ -725,20 +767,34 @@ class Sector {
   async load(
     folder: string,
     name: string,
-    files: Array<string>,
-    model: types.sector.Model,
-    local_name: string
+    local_name: string,
+    init_readme: string = "",
+    init_pos: undefined | { x: number, y: number, z: number } = undefined,
+    init_rot: undefined | { x: number, y: number, z: number } = undefined,
+    init_scale: undefined | { x: number, y: number, z: number } = undefined,
+    init_mat: number | null = null
   ) {
+
+    let desc = await (
+      await fetch(
+        `${utils.asite.PY_BACKEND}/api/obj?folder=${encodeURIComponent(
+          folder
+        )}&name=${encodeURIComponent(name)}`
+      )
+    ).json();
+
+    let files = desc.files;
+    let model = desc.model;
+
     let get_cached = async (
       file: string,
       loader: deps.three.Loader,
       clone: (grp: deps.three.Group) => any
     ) => {
-      let url = `${
-        utils.asite.PY_BACKEND
-      }/api/obj_file?folder=${encodeURIComponent(
-        folder
-      )}&name=${encodeURIComponent(name)}&file=${encodeURIComponent(file)}`;
+      let url = `${utils.asite.PY_BACKEND
+        }/api/obj_file?folder=${encodeURIComponent(
+          folder
+        )}&name=${encodeURIComponent(name)}&file=${encodeURIComponent(file)}`;
 
       if (!this.#cache.has(url)) {
         await new Promise<void>((resolve, reject) =>
@@ -765,16 +821,22 @@ class Sector {
         );
 
         this.#scene.add(cached);
-
-        this.#scale_me(cached);
+        this.#do_prs(cached, init_pos, init_rot, init_scale);
 
         let new_name = this.#get_free_name(local_name);
         this.#objects[new_name] = {
+          type: "LOAD",
+          folder: folder,
+          name: name,
           local: cached,
-          mat: null,
+          mat: init_mat,
           local_highlight: undefined,
-          readme: "",
+          readme: init_readme,
         };
+
+        if (init_mat !== null) {
+          this.override_mat(new_name, init_mat);
+        }
 
         return ["Loaded"];
       }
@@ -783,16 +845,22 @@ class Sector {
         let cached = await get_cached(files[0], loader, (obj) => obj);
 
         this.#scene.add(cached);
-
-        this.#scale_me(cached);
+        this.#do_prs(cached, init_pos, init_rot, init_scale);
 
         let new_name = this.#get_free_name(local_name);
         this.#objects[new_name] = {
+          type: "LOAD",
+          folder: folder,
+          name: name,
           local: cached,
-          mat: null,
+          mat: init_mat,
           local_highlight: undefined,
-          readme: "",
+          readme: init_readme,
         };
+
+        if (init_mat !== null) {
+          this.override_mat(new_name, init_mat);
+        }
 
         return ["Loaded"];
       }
@@ -802,19 +870,23 @@ class Sector {
 
         cached.center();
 
-        let material = new deps.three.MeshStandardMaterial({ color: 0xffffff });
+        let act_init_mat = init_mat === null ? 0xFFFFFF : init_mat;
+
+        let material = new deps.three.MeshStandardMaterial({ color: act_init_mat });
         let mesh = new deps.three.Mesh(cached, material);
 
         this.#scene.add(mesh);
-
-        this.#scale_me(mesh);
+        this.#do_prs(cached, init_pos, init_rot, init_scale);
 
         let new_name = this.#get_free_name(local_name);
         this.#objects[new_name] = {
+          type: "LOAD",
+          folder: folder,
+          name: name,
           local: mesh,
-          mat: null,
+          mat: act_init_mat,
           local_highlight: undefined,
-          readme: "",
+          readme: init_readme,
         };
 
         return ["Loaded"];
@@ -903,6 +975,10 @@ class Sector {
     }
   }
 
+  get_name() {
+    return this.#name;
+  }
+
   set_name(name: string) {
     this.#name = name;
   }
@@ -948,39 +1024,54 @@ class Sector {
   lock() {
     if (this.#edit_obj !== undefined) return;
 
-    this.#controls.lock();
+    try {
+      this.#controls.lock();
+    } catch { }
+  }
+
+  unlock() {
+    try {
+      this.#controls.unlock();
+    } catch { }
   }
 
   camera_quat_set(euler: deps.three.Euler) {
     this.#camera.quaternion.setFromEuler(euler);
   }
 
+  get_camera_rot(){
+    return [this.#camera.rotation.x, this.#camera.rotation.y, this.#camera.rotation.z];
+  }
+
   ls_objs() {
     return Object.keys(this.#objects);
   }
 
+  get_obj_pos_sa(name: string) {
+    let val = this.get_obj_pos(name);
+    return [`(${val[0]},${val[1]},${val[2]})`]
+  }
+
+  get_obj_rot_sa(name: string) {
+    let val = this.get_obj_rot(name);
+    return [`(${val[0]},${val[1]},${val[2]})`]
+  }
+
+  get_obj_scale_sa(name: string) {
+    let val = this.get_obj_scale(name);
+    return [`(${val[0]},${val[1]},${val[2]})`]
+  }
+
   get_obj_pos(name: string) {
-    return [
-      `(${this.#objects[name].local.position.x},${
-        this.#objects[name].local.position.y
-      },${this.#objects[name].local.position.z})`,
-    ];
+    return [this.#objects[name].local.position.x, this.#objects[name].local.position.y, this.#objects[name].local.position.z];
   }
 
   get_obj_rot(name: string) {
-    return [
-      `(${(this.#objects[name].local.rotation.x * 180) / Math.PI},${
-        (this.#objects[name].local.rotation.y * 180) / Math.PI
-      },${(this.#objects[name].local.rotation.z * 180) / Math.PI})`,
-    ];
+    return [(this.#objects[name].local.rotation.x * 180) / Math.PI, (this.#objects[name].local.rotation.y * 180) / Math.PI, (this.#objects[name].local.rotation.z * 180) / Math.PI]
   }
 
   get_obj_scale(name: string) {
-    return [
-      `(${this.#objects[name].local.scale.x},${
-        this.#objects[name].local.scale.y
-      },${this.#objects[name].local.scale.z})`,
-    ];
+    return [this.#objects[name].local.scale.x, this.#objects[name].local.scale.y, this.#objects[name].local.scale.z];
   }
 
   set_obj_pos(name: string, x: number, y: number, z: number) {
@@ -1004,7 +1095,7 @@ class Sector {
 
     try {
       this.#controls.unlock();
-    } catch {}
+    } catch { }
     this.#controls.enabled = false;
     this.#is_flying = true;
     this.#edit_obj = name;
@@ -1036,6 +1127,22 @@ class Sector {
     }
   }
 
+  ls_cust_vars() {
+    return Object.keys(this.#cust_vars);
+  }
+
+  get_cust_var(name: string) {
+    return this.#cust_vars[name];
+  }
+
+  set_cust_var(name: string, value: any) {
+    this.#cust_vars[name] = value;
+  }
+
+  delete_cust_var(name: string) {
+    delete this.#cust_vars[name];
+  }
+
   get_id() {
     return this.#id;
   }
@@ -1059,7 +1166,7 @@ class Sector {
   }
 
   get_ground_size() {
-    return `${this.#ground_width} ${this.#ground_height}`;
+    return [this.#ground_width, this.#ground_height];
   }
 
   set_ground_size(width: number, height: number) {
@@ -1067,6 +1174,73 @@ class Sector {
 
     this.#ground_width = width;
     this.#ground_height = height;
+  }
+
+  async save() {
+    let save_obj: types.sector.SectorDesc = {
+      name: this.#name,
+      objects: {},
+      connections: this.#connections.map(v => ({ name1: v.name1, name2: v.name2 })),
+      tps: this.#tps,
+      last_rot: {
+        x: this.#camera.rotation.x,
+        y: this.#camera.rotation.y,
+        z: this.#camera.rotation.z,
+      },
+      last_pos: {
+        x: this.#player_rigid_body.translation().x,
+        y: this.#player_rigid_body.translation().y,
+        z: this.#player_rigid_body.translation().z,
+      },
+      cust_vars: this.#cust_vars,
+      glob_speed_mult: this.glob_speed_mult,
+      ground_height: this.#ground_height,
+      ground_width: this.#ground_width
+    }
+
+    for (let i = 0; i < Object.keys(this.#objects).length; i++) {
+      let cur_key = Object.keys(this.#objects)[i];
+
+      switch (this.#objects[cur_key].type) {
+        case "LOAD": {
+          save_obj.objects[cur_key] = {
+            type: "LOAD",
+            folder: this.#objects[cur_key].folder,
+            name: this.#objects[cur_key].name,
+            readme: this.#objects[cur_key].readme,
+            pos: { x: this.#objects[cur_key].local.position.x, y: this.#objects[cur_key].local.position.y, z: this.#objects[cur_key].local.position.z },
+            rot: { x: this.#objects[cur_key].local.rotation.x, y: this.#objects[cur_key].local.rotation.y, z: this.#objects[cur_key].local.rotation.z },
+            scale: { x: this.#objects[cur_key].local.scale.x, y: this.#objects[cur_key].local.scale.y, z: this.#objects[cur_key].local.scale.z },
+            mat: this.#objects[cur_key].mat,
+          }
+          break;
+        }
+        case "TEXT": {
+          save_obj.objects[cur_key] = {
+            type: "TEXT",
+            text: this.#objects[cur_key].text,
+            readme: this.#objects[cur_key].readme,
+            pos: { x: this.#objects[cur_key].local.position.x, y: this.#objects[cur_key].local.position.y, z: this.#objects[cur_key].local.position.z },
+            rot: { x: this.#objects[cur_key].local.rotation.x, y: this.#objects[cur_key].local.rotation.y, z: this.#objects[cur_key].local.rotation.z },
+            scale: { x: this.#objects[cur_key].local.scale.x, y: this.#objects[cur_key].local.scale.y, z: this.#objects[cur_key].local.scale.z },
+            mat: this.#objects[cur_key].mat,
+          }
+          break;
+        }
+      }
+    }
+
+    let resp = await fetch(`${utils.asite.PY_BACKEND}/api/write_sector?id=${encodeURIComponent(this.#id)}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(save_obj)
+    });
+
+    if (resp.ok) return ["Okay"];
+
+    return ["Error"];
   }
 
   #create_player(world: deps.rapier.World, x: number, y: number, z: number) {

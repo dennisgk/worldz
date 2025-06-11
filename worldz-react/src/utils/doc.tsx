@@ -29,4 +29,17 @@ const is_mobile = () =>
     navigator.userAgent
   );
 
-export { use_theme, is_mobile };
+const enable_leave_prompt = () => {
+  window.addEventListener("beforeunload", leave_handler);
+}
+
+const disable_leave_prompt = () => {
+  window.removeEventListener("beforeunload", leave_handler);
+}
+
+const leave_handler = (e: any) => {
+  e.preventDefault();
+  e.returnValue = "";
+}
+
+export { use_theme, is_mobile, enable_leave_prompt, disable_leave_prompt };

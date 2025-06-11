@@ -5,9 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.encoders import jsonable_encoder
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
-from worldz import Worldz, Sector
+from worldz import Worldz
 
 from typing import List
 
@@ -41,14 +41,24 @@ def main():
     @app.get("/settings", response_class=FileResponse)
     def get_settings():
         return index()
+
+    @app.get("/sector", response_class=FileResponse)
+    def get_sector():
+        return index()
     
     @app.get("/api/worldz", response_class=JSONResponse)
     def get_api_worldz():
-        return JSONResponse(jsonable_encoder(worldz.get_sectors(), custom_encoder={Sector: lambda self: {"name": self.name}}))
+        return JSONResponse(jsonable_encoder(worldz.get_sectors()))
     
     @app.get("/api/sector", response_class=JSONResponse)
     def get_api_sector(id: str = Query(...)):
-        return JSONResponse(jsonable_encoder(worldz.get_sectors()[id], custom_encoder={Sector: lambda self: {"name": self.name, "objects": self.objects}}))
+        return JSONResponse(jsonable_encoder(worldz.get_sectors()[id]))
+    
+    @app.post("/api/write_sector", response_class=Response)
+    async def post_api_write_sector(request: Request, id: str = Query(...)):
+        data = await request.json()
+        worldz.write_sector(id, data)
+        return Response(status_code=200)
     
     @app.post("/api/upload_obj", response_class=Response)
     def post_api_upload_obj(files: List[UploadFile] = File(...), folder: str = Query(...), name: str = Query(...), model: str = Query(...)):
