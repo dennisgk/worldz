@@ -1065,7 +1065,10 @@ const SectorActual = (props: {
 
               <components.layout.stack.Cell grow overflow="HIDDEN">
                 <components.layout.scrollable.Scrollable direction="VERTICAL">
-                  <div className="prose prose-invert">
+                  <div
+                    className="prose prose-invert"
+                    style={{ maxWidth: "100%" }}
+                  >
                     <deps.markdown.Markdown remarkPlugins={[deps.remarkGfm]}>
                       {sector.current.get_readme(opening_readme)}
                     </deps.markdown.Markdown>

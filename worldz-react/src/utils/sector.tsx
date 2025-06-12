@@ -309,6 +309,8 @@ class Sector {
       }
     });
 
+    let last_intersect = 0;
+
     // Animation loop
     const animate = () => {
       requestAnimationFrame(animate);
@@ -468,89 +470,94 @@ class Sector {
 
         this.#player_rigid_body.setLinvel(dampedVel, true);
 
-        // RAYCAST
+        last_intersect = last_intersect + dt;
+        if (last_intersect > 0.25) {
+          last_intersect = 0;
 
-        // 1. Setup raycaster
-        const raycaster = new deps.three.Raycaster();
+          // RAYCAST
 
-        // 2. Cast a ray from camera forward
-        const origin = this.#camera.position.clone();
-        const ray_drection = new deps.three.Vector3();
-        this.#camera.getWorldDirection(ray_drection);
-        raycaster.set(origin, ray_drection);
+          // 1. Setup raycaster
+          const raycaster = new deps.three.Raycaster();
 
-        // 3. Build list of objects to raycast against (excluding player)
-        const scene_obj: any = [];
-        this.#scene.traverse((child: any) => {
-          if (child.isMesh) {
-            scene_obj.push(child);
-          }
-        });
+          // 2. Cast a ray from camera forward
+          const origin = this.#camera.position.clone();
+          const ray_drection = new deps.three.Vector3();
+          this.#camera.getWorldDirection(ray_drection);
+          raycaster.set(origin, ray_drection);
 
-        // 4. Perform raycast
-        const intersects = raycaster.intersectObjects(scene_obj, true);
+          // 3. Build list of objects to raycast against (excluding player)
+          const scene_obj: any = [];
+          this.#scene.traverse((child: any) => {
+            if (child.isMesh) {
+              scene_obj.push(child);
+            }
+          });
 
-        // 5. Check result
-        for (let on = 0; on < Object.keys(this.#objects).length; on++) {
-          let obj_name = Object.keys(this.#objects)[on];
-          if (this.#objects[obj_name].local_highlight !== undefined) {
-            let keep_highlight = false;
+          // 4. Perform raycast
+          const intersects = raycaster.intersectObjects(scene_obj, true);
 
-            for (let i = 0; i < intersects.length; i++) {
-              if (
-                this.#object_contains(
-                  this.#objects[obj_name].local,
-                  intersects[i].object
-                ) &&
-                intersects[i].distance <= 6
-              ) {
-                keep_highlight = true;
+          // 5. Check result
+          for (let on = 0; on < Object.keys(this.#objects).length; on++) {
+            let obj_name = Object.keys(this.#objects)[on];
+            if (this.#objects[obj_name].local_highlight !== undefined) {
+              let keep_highlight = false;
+
+              for (let i = 0; i < intersects.length; i++) {
+                if (
+                  this.#object_contains(
+                    this.#objects[obj_name].local,
+                    intersects[i].object
+                  ) &&
+                  intersects[i].distance <= 6
+                ) {
+                  keep_highlight = true;
+                  break;
+                }
+              }
+
+              if (!keep_highlight) {
+                this.#scene.remove(this.#objects[obj_name].local_highlight);
+                this.#objects[obj_name].local_highlight = undefined;
+              }
+            } else {
+              for (let i = 0; i < intersects.length; i++) {
+                if (
+                  this.#objects[obj_name].readme === "" ||
+                  !this.#object_contains(
+                    this.#objects[obj_name].local,
+                    intersects[i].object
+                  ) ||
+                  intersects[i].distance > 6
+                )
+                  continue;
+
+                const box = new deps.three.Box3().setFromObject(
+                  this.#objects[obj_name].local
+                );
+                const size = new deps.three.Vector3();
+                const center = new deps.three.Vector3();
+                box.getSize(size);
+                box.getCenter(center);
+
+                // Create a box mesh with additive glowing material
+                const glowMat = new deps.three.MeshBasicMaterial({
+                  color: 0x00ffff,
+                  transparent: true,
+                  opacity: 0.2,
+                  blending: deps.three.AdditiveBlending,
+                  side: deps.three.BackSide,
+                });
+
+                const glowBox = new deps.three.Mesh(
+                  new deps.three.BoxGeometry(size.x, size.y, size.z),
+                  glowMat
+                );
+                glowBox.position.copy(center);
+                glowBox.scale.multiplyScalar(1.1); // slightly larger than the object
+                this.#scene.add(glowBox);
+                this.#objects[obj_name].local_highlight = glowBox;
                 break;
               }
-            }
-
-            if (!keep_highlight) {
-              this.#scene.remove(this.#objects[obj_name].local_highlight);
-              this.#objects[obj_name].local_highlight = undefined;
-            }
-          } else {
-            for (let i = 0; i < intersects.length; i++) {
-              if (
-                this.#objects[obj_name].readme === "" ||
-                !this.#object_contains(
-                  this.#objects[obj_name].local,
-                  intersects[i].object
-                ) ||
-                intersects[i].distance > 6
-              )
-                continue;
-
-              const box = new deps.three.Box3().setFromObject(
-                this.#objects[obj_name].local
-              );
-              const size = new deps.three.Vector3();
-              const center = new deps.three.Vector3();
-              box.getSize(size);
-              box.getCenter(center);
-
-              // Create a box mesh with additive glowing material
-              const glowMat = new deps.three.MeshBasicMaterial({
-                color: 0x00ffff,
-                transparent: true,
-                opacity: 0.2,
-                blending: deps.three.AdditiveBlending,
-                side: deps.three.BackSide,
-              });
-
-              const glowBox = new deps.three.Mesh(
-                new deps.three.BoxGeometry(size.x, size.y, size.z),
-                glowMat
-              );
-              glowBox.position.copy(center);
-              glowBox.scale.multiplyScalar(1.1); // slightly larger than the object
-              this.#scene.add(glowBox);
-              this.#objects[obj_name].local_highlight = glowBox;
-              break;
             }
           }
         }
@@ -798,6 +805,13 @@ class Sector {
     } else {
       this.#scale_me(cached);
     }
+    let remove: Array<any> = [];
+    cached.traverse((e: any) => e.isLight && remove.push(e));
+    remove.forEach((light) => {
+      try {
+        light.parent.remove(light);
+      } catch {}
+    });
   }
 
   #scale_me(obj: deps.three.Object3D) {
