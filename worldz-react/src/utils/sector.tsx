@@ -926,7 +926,7 @@ class Sector {
         let mesh = new deps.three.Mesh(cached, material);
 
         this.#scene.add(mesh);
-        this.#do_prs(cached, init_pos, init_rot, init_scale);
+        this.#do_prs(mesh, init_pos, init_rot, init_scale);
 
         let new_name = this.#get_free_name(local_name);
         this.#objects[new_name] = {
