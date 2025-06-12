@@ -769,7 +769,7 @@ class Sector {
     this.#objects[new_name] = {
       type: "TEXT",
       local: group,
-      mat: col,
+      mat: init_mat,
       local_highlight: undefined,
       readme: init_readme,
       text: text,
@@ -850,7 +850,8 @@ class Sector {
     let get_cached = async (
       file: string,
       loader: deps.three.Loader,
-      clone: (grp: deps.three.Group) => any
+      bef_do: (grp: any) => any,
+      clone: (grp: any) => any
     ) => {
       let url = `${
         utils.asite.PY_BACKEND
@@ -863,7 +864,8 @@ class Sector {
           loader.load(
             url,
             (obj: any) => {
-              this.#cache.set(url, obj);
+              let new_obj = bef_do(obj)
+              this.#cache.set(url, new_obj);
               resolve();
             },
             undefined,
@@ -875,11 +877,40 @@ class Sector {
       return clone(this.#cache.get(url)!);
     };
 
+    let create_centered_parent = (grp: any) => {
+      let bbox: any = undefined;
+      try{
+      bbox = new deps.three.Box3().setFromObject(grp);
+      }catch{console.error(grp)}
+
+      const size = new deps.three.Vector3();
+      bbox.getSize(size);
+
+      const center = new deps.three.Vector3();
+      bbox.getCenter(center);
+
+      // Create a BoxGeometry that matches the bounds
+      const boxGeo = new deps.three.BoxGeometry(size.x, size.y, size.z);
+      const invisibleMat = new deps.three.MeshBasicMaterial({ visible: false });
+
+      const hitboxMesh = new deps.three.Mesh(boxGeo, invisibleMat);
+
+      // Position the box to align with the text
+      hitboxMesh.position.copy(center);
+
+      const group = new deps.three.Group();
+      group.add(hitboxMesh);
+      grp.position.sub(center); // Offset text inside the hitbox
+      hitboxMesh.add(grp); // textMesh now relative to hitbox
+
+      return hitboxMesh as any;
+    };
+
     switch (model) {
       case "GLTF_GLB": {
         let loader = new deps.three_addons.GLTFLoader();
-        let cached = await get_cached(files[0], loader, (obj) =>
-          (obj as any).scene.clone(true)
+        let cached = await get_cached(files[0], loader, (obj) => create_centered_parent(obj.scene.clone(true)), (obj) =>
+          obj.clone(true)
         );
 
         this.#scene.add(cached);
@@ -904,7 +935,7 @@ class Sector {
       }
       case "FBX": {
         let loader = new deps.three_addons.FBXLoader();
-        let cached = await get_cached(files[0], loader, (obj) => obj);
+        let cached = await get_cached(files[0], loader, obj => create_centered_parent(obj.clone(true)), (obj) => obj.clone(true));
 
         this.#scene.add(cached);
         this.#do_prs(cached, init_pos, init_rot, init_scale);
@@ -928,30 +959,30 @@ class Sector {
       }
       case "STL": {
         let loader = new deps.three_addons.STLLoader();
-        let cached = await get_cached(files[0], loader, (obj) => obj);
-
-        cached.center();
-
-        let act_init_mat = init_mat === null ? 0xffffff : init_mat;
+        let cached = await get_cached(files[0], loader, obj => {obj.center(); 
 
         let material = new deps.three.MeshStandardMaterial({
-          color: act_init_mat,
+          color: 0xffffff,
         });
-        let mesh = new deps.three.Mesh(cached, material);
+        let mesh = new deps.three.Mesh(obj, material); return create_centered_parent(mesh);}, (obj) => obj.clone(true));
 
-        this.#scene.add(mesh);
-        this.#do_prs(mesh, init_pos, init_rot, init_scale);
+        this.#scene.add(cached);
+        this.#do_prs(cached, init_pos, init_rot, init_scale);
 
         let new_name = this.#get_free_name(local_name);
         this.#objects[new_name] = {
           type: "LOAD",
           folder: folder,
           name: name,
-          local: mesh,
-          mat: act_init_mat,
+          local: cached,
+          mat: init_mat,
           local_highlight: undefined,
           readme: init_readme,
         };
+
+        if(init_mat !== null){
+          this.override_mat(new_name, init_mat);
+        }
 
         return ["Loaded"];
       }
