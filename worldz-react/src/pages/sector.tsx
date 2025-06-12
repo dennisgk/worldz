@@ -44,6 +44,7 @@ const SectorActual = (props: {
     if (txt.length === 2) {
       process_command(
         `let user_comm = async() => {
+          _running_from_cmd = true;
           ${txt[1]}
         }; user_comm();`,
         false
@@ -515,6 +516,7 @@ const SectorActual = (props: {
       ];
 
       let _do_clear = false;
+      let _running_from_cmd = true;
 
       const clear = async () => {
         _do_clear = true;
@@ -528,7 +530,7 @@ const SectorActual = (props: {
       };
 
       const get_name = async () =>
-        command_overlay
+        _running_from_cmd
           ? [sector.current.get_name()]
           : sector.current.get_name();
 
@@ -697,21 +699,21 @@ const SectorActual = (props: {
       const get_obj_pos = async (name: string) =>
         name === undefined
           ? ["Argument error"]
-          : command_overlay
+          : _running_from_cmd
           ? sector.current.get_obj_pos_sa(name)
           : sector.current.get_obj_pos(name);
 
       const get_obj_rot = async (name: string) =>
         name === undefined
           ? ["Argument error"]
-          : command_overlay
+          : _running_from_cmd
           ? sector.current.get_obj_rot_sa(name)
           : sector.current.get_obj_rot(name);
 
       const get_obj_scale = async (name: string) =>
         name === undefined
           ? ["Argument error"]
-          : command_overlay
+          : _running_from_cmd
           ? sector.current.get_obj_scale_sa(name)
           : sector.current.get_obj_scale(name);
 
@@ -803,7 +805,7 @@ const SectorActual = (props: {
       };
 
       const get_speed = async () =>
-        command_overlay
+        _running_from_cmd
           ? [sector.current.glob_speed_mult.toString()]
           : sector.current.glob_speed_mult;
 
@@ -826,7 +828,7 @@ const SectorActual = (props: {
       };
 
       const ls_connects = async () =>
-        command_overlay
+        _running_from_cmd
           ? sector.current.ls_connects().map((v) => `${v[0]} --- ${v[1]}`)
           : sector.current.ls_connects();
 
@@ -850,7 +852,7 @@ const SectorActual = (props: {
       };
 
       const get_ground_size = async () =>
-        command_overlay
+        _running_from_cmd
           ? [
               sector.current
                 .get_ground_size()
@@ -868,7 +870,8 @@ const SectorActual = (props: {
         return ["Set", "This requires save? and reload"];
       };
 
-      const get_id = async () => [sector.current.get_id()];
+      const get_id = async () =>
+        _running_from_cmd ? [sector.current.get_id()] : sector.current.get_id();
 
       const ls_cust_vars = async () => sector.current.ls_cust_vars();
 
@@ -877,7 +880,7 @@ const SectorActual = (props: {
           return ["Argument error"];
         }
 
-        if (command_overlay) {
+        if (_running_from_cmd) {
           return [`${sector.current.get_cust_var(name)}`];
         } else {
           return sector.current.get_cust_var(name);
