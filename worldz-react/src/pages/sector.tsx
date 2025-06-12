@@ -44,7 +44,7 @@ const SectorActual = (props: {
     if (txt.length === 2) {
       process_command(
         `let user_comm = async() => {
-          _running_from_cmd = true;
+          _running_from_cmd = false;
           ${txt[1]}
         }; user_comm();`,
         false
