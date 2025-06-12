@@ -268,13 +268,13 @@ class Sector {
         this.#text_font = font;
         resolve();
       });
-    }).then(() => {
+    }).then(async () => {
       for (let i = 0; i < Object.keys(init_info.objects).length; i++) {
         let cur_key = Object.keys(init_info.objects)[i];
 
         switch (init_info.objects[cur_key].type) {
           case "LOAD": {
-            this.load(
+            await this.load(
               init_info.objects[cur_key].folder,
               init_info.objects[cur_key].name,
               cur_key,
