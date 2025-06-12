@@ -1,6 +1,9 @@
 import { deps, utils, components, types } from "../meta";
 
-const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) => {
+const SectorActual = (props: {
+  init_info: types.sector.SectorDesc;
+  id: string;
+}) => {
   const mount_ref = utils.react.use_ref<HTMLDivElement>(null);
   const joystick_ref = utils.react.use_ref<HTMLDivElement>(null);
   const [command_overlay, set_command_overlay] = utils.react.use_state(false);
@@ -28,7 +31,9 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
   const mobile_yaw = utils.react.use_ref(0);
 
   const ex_open_readme = (name: string) => {
-    let txt = (sector.current.get_readme(name) ?? "").split(/^#!\/worldz\/sector\r?\n/g);
+    let txt = (sector.current.get_readme(name) ?? "").split(
+      /^#!\/worldz\/sector\r?\n/g
+    );
     if (txt.length === 1) {
       if (!command_overlay) {
         sector.current.unlock();
@@ -37,9 +42,12 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
     }
 
     if (txt.length === 2) {
-      process_command(`let user_comm = async() => {
+      process_command(
+        `let user_comm = async() => {
           ${txt[1]}
-        }; user_comm();`, false);
+        }; user_comm();`,
+        false
+      );
     }
   };
 
@@ -63,23 +71,21 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
 
     utils.doc.enable_leave_prompt();
 
-    if(utils.doc.is_mobile()){
-      let rot = sector.current.get_camera_rot();
-      mobile_yaw.current = -rot[0];
-      mobile_pitch.current = rot[1];
+    if (utils.doc.is_mobile()) {
+      mobile_yaw.current = -sector.current.mobile_yaw;
+      mobile_pitch.current = sector.current.mobile_pitch;
     }
 
     return () => {
       sector.current.deconstruct();
       utils.doc.disable_leave_prompt();
-    }
+    };
   }, []);
 
   utils.react.use_effect(() => {
-    sector.current.open_readme =
-      (name) => {
-        ex_open_readme(name);
-      };
+    sector.current.open_readme = (name) => {
+      ex_open_readme(name);
+    };
   }, [command_history, command_overlay]);
 
   utils.react.use_effect(() => {
@@ -161,8 +167,6 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
           .ex()
           .nov()
       );
-
-
     }
   }, []);
 
@@ -175,67 +179,76 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
 
     // Desktop keyboard
     const onKeyDown = (e: KeyboardEvent) =>
-      command_overlay
+      opening_readme !== undefined
+        ? e.code === "Space"
+          ? utils
+              .pipe()
+              .no(() => (command_overlay ? undefined : sector.current.lock()))
+              .no(() => set_opening_readme(undefined))
+              .ex()
+              .nov()
+          : undefined
+        : command_overlay
         ? e.code === "Escape"
           ? set_command_overlay(false)
           : undefined
         : e.code === "KeyE"
-          ? sector.current.toggle_fly()
-          : e.code === "Space"
-            ? sector.current.is_flying()
-              ? sector.current.fly_up()
-              : sector.current.jump()
-            : e.code === "ShiftLeft"
-              ? sector.current.is_flying()
-                ? sector.current.fly_down()
-                : undefined
-              : e.code === "KeyW"
-                ? (sector.current.move.forward = 1)
-                : e.code === "KeyS"
-                  ? (sector.current.move.backward = 1)
-                  : e.code === "KeyA"
-                    ? (sector.current.move.left = 1)
-                    : e.code === "KeyD"
-                      ? (sector.current.move.right = 1)
-                      : e.code === "KeyC"
-                        ? utils
-                          .pipe<1>()
-                          .s(0, () => document.pointerLockElement !== null)
-                          .g(0, (_) => (_ ? document.exitPointerLock() : undefined))
-                          .no(() => e.preventDefault())
-                          .no(
-                            () =>
-                            (sector.current.move = {
-                              forward: 0,
-                              backward: 0,
-                              left: 0,
-                              right: 0,
-                            })
-                          )
-                          .no(() => set_command_overlay(true))
-                          .ex()
-                          .nov()
-                        : undefined;
+        ? sector.current.toggle_fly()
+        : e.code === "Space"
+        ? sector.current.is_flying()
+          ? sector.current.fly_up()
+          : sector.current.jump()
+        : e.code === "ShiftLeft"
+        ? sector.current.is_flying()
+          ? sector.current.fly_down()
+          : undefined
+        : e.code === "KeyW"
+        ? (sector.current.move.forward = 1)
+        : e.code === "KeyS"
+        ? (sector.current.move.backward = 1)
+        : e.code === "KeyA"
+        ? (sector.current.move.left = 1)
+        : e.code === "KeyD"
+        ? (sector.current.move.right = 1)
+        : e.code === "KeyC"
+        ? utils
+            .pipe<1>()
+            .s(0, () => document.pointerLockElement !== null)
+            .g(0, (_) => (_ ? document.exitPointerLock() : undefined))
+            .no(() => e.preventDefault())
+            .no(
+              () =>
+                (sector.current.move = {
+                  forward: 0,
+                  backward: 0,
+                  left: 0,
+                  right: 0,
+                })
+            )
+            .no(() => set_command_overlay(true))
+            .ex()
+            .nov()
+        : undefined;
     const onKeyUp = (e: KeyboardEvent) =>
       command_overlay
         ? undefined
         : e.code === "Space"
-          ? sector.current.is_flying()
-            ? sector.current.fly_reset_up()
-            : undefined
-          : e.code === "ShiftLeft"
-            ? sector.current.is_flying()
-              ? sector.current.fly_reset_down()
-              : undefined
-            : e.code === "KeyW"
-              ? (sector.current.move.forward = 0)
-              : e.code === "KeyS"
-                ? (sector.current.move.backward = 0)
-                : e.code === "KeyA"
-                  ? (sector.current.move.left = 0)
-                  : e.code === "KeyD"
-                    ? (sector.current.move.right = 0)
-                    : undefined;
+        ? sector.current.is_flying()
+          ? sector.current.fly_reset_up()
+          : undefined
+        : e.code === "ShiftLeft"
+        ? sector.current.is_flying()
+          ? sector.current.fly_reset_down()
+          : undefined
+        : e.code === "KeyW"
+        ? (sector.current.move.forward = 0)
+        : e.code === "KeyS"
+        ? (sector.current.move.backward = 0)
+        : e.code === "KeyA"
+        ? (sector.current.move.left = 0)
+        : e.code === "KeyD"
+        ? (sector.current.move.right = 0)
+        : undefined;
     if (!utils.doc.is_mobile()) {
       window.addEventListener("keydown", onKeyDown);
       window.addEventListener("keyup", onKeyUp);
@@ -317,6 +330,14 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
               const sensitivity = 0.006;
               mobile_yaw.current -= dx * sensitivity;
               mobile_pitch.current -= dy * sensitivity;
+
+              if (mobile_yaw.current > Math.PI / 2) {
+                mobile_yaw.current = Math.PI / 2;
+              }
+
+              if (mobile_yaw.current < -Math.PI / 2) {
+                mobile_yaw.current = -Math.PI / 2;
+              }
 
               const euler = new deps.three.Euler(
                 -mobile_yaw.current,
@@ -506,7 +527,10 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
         return [];
       };
 
-      const get_name = async () => command_overlay ? [sector.current.get_name()] : sector.current.get_name();
+      const get_name = async () =>
+        command_overlay
+          ? [sector.current.get_name()]
+          : sector.current.get_name();
 
       const set_name = async (name: string) => {
         if (name === undefined) {
@@ -549,7 +573,8 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
         if (
           (
             await fetch(
-              `${utils.asite.PY_BACKEND
+              `${
+                utils.asite.PY_BACKEND
               }/api/delete_obj?folder=${encodeURIComponent(
                 folder
               )}&name=${encodeURIComponent(name)}`,
@@ -571,7 +596,8 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
         if (args.length === 1)
           return await (
             await fetch(
-              `${utils.asite.PY_BACKEND
+              `${
+                utils.asite.PY_BACKEND
               }/api/folder_objs?folder=${encodeURIComponent(args[0])}`
             )
           ).json();
@@ -625,11 +651,7 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
           return ["Argument error"];
         }
 
-        return await sector.current.load(
-          folder,
-          name,
-          local_name
-        );
+        return await sector.current.load(folder, name, local_name);
       };
 
       const load_text = (text: string, name: string) => {
@@ -675,20 +697,23 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
       const get_obj_pos = async (name: string) =>
         name === undefined
           ? ["Argument error"]
-          : command_overlay ? sector.current.get_obj_pos_sa(name)
-            : sector.current.get_obj_pos(name);
+          : command_overlay
+          ? sector.current.get_obj_pos_sa(name)
+          : sector.current.get_obj_pos(name);
 
       const get_obj_rot = async (name: string) =>
         name === undefined
           ? ["Argument error"]
-          : command_overlay ? sector.current.get_obj_rot_sa(name)
-            : sector.current.get_obj_rot(name);
+          : command_overlay
+          ? sector.current.get_obj_rot_sa(name)
+          : sector.current.get_obj_rot(name);
 
       const get_obj_scale = async (name: string) =>
         name === undefined
           ? ["Argument error"]
-          : command_overlay ? sector.current.get_obj_scale_sa(name)
-            : sector.current.get_obj_scale(name);
+          : command_overlay
+          ? sector.current.get_obj_scale_sa(name)
+          : sector.current.get_obj_scale(name);
 
       const set_obj_pos = async (
         name: string,
@@ -777,7 +802,10 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
         return ["Set"];
       };
 
-      const get_speed = async () => command_overlay ? [sector.current.glob_speed_mult.toString()] : sector.current.glob_speed_mult;
+      const get_speed = async () =>
+        command_overlay
+          ? [sector.current.glob_speed_mult.toString()]
+          : sector.current.glob_speed_mult;
 
       const edit_readme = async (name: string) => {
         if (name === undefined) return ["Argument error"];
@@ -797,7 +825,10 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
         return ["Opened"];
       };
 
-      const ls_connects = async () => command_overlay ? sector.current.ls_connects().map(v => `${v[0]} --- ${v[1]}`) : sector.current.ls_connects();
+      const ls_connects = async () =>
+        command_overlay
+          ? sector.current.ls_connects().map((v) => `${v[0]} --- ${v[1]}`)
+          : sector.current.ls_connects();
 
       const connect = async (name1: string, name2: string) => {
         if (name1 === undefined || name2 === undefined)
@@ -818,7 +849,15 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
         return ["Deleted"];
       };
 
-      const get_ground_size = async () => command_overlay ? [sector.current.get_ground_size().map(v => `${v}`).join(" ")] : sector.current.get_ground_size();
+      const get_ground_size = async () =>
+        command_overlay
+          ? [
+              sector.current
+                .get_ground_size()
+                .map((v) => `${v}`)
+                .join(" "),
+            ]
+          : sector.current.get_ground_size();
 
       const set_ground_size = async (width: number, height: number) => {
         if (width === undefined || height === undefined) {
@@ -839,12 +878,11 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
         }
 
         if (command_overlay) {
-          return [`${sector.current.get_cust_var(name)}`]
-        }
-        else {
+          return [`${sector.current.get_cust_var(name)}`];
+        } else {
           return sector.current.get_cust_var(name);
         }
-      }
+      };
 
       const set_cust_var = async (name: string, value: any) => {
         if (name === undefined || value === undefined) {
@@ -853,7 +891,7 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
 
         sector.current.set_cust_var(name, value);
         return ["Set"];
-      }
+      };
 
       const delete_cust_var = async (name: string) => {
         if (name === undefined) {
@@ -862,9 +900,9 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
 
         sector.current.delete_cust_var(name);
         return ["Deleted"];
-      }
+      };
 
-      const save = async() => await sector.current.save();
+      const save = async () => await sector.current.save();
 
       let _out_val: Array<string> = [];
 
@@ -979,11 +1017,11 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
           right: utils.doc.is_mobile() ? 0 : 10,
           ...(utils.doc.is_mobile()
             ? {
-              bottom: -10,
-            }
+                bottom: -10,
+              }
             : {
-              top: 0,
-            }),
+                top: 0,
+              }),
         }}
       >
         <components.layout.text.Text
@@ -1082,19 +1120,23 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
                     "font-mono",
                   ].join_class_name()}
                   value={editing_readme_val}
-                  onChange={(e) => set_editing_readme_val(e.target.value
-                    .replace(/[\u2013\u2014\u2010]/g, "-")         // dashes/hyphen
-                    .replace(/[\u2018\u2019]/g, "'")               // single quotes
-                    .replace(/[\u201C\u201D]/g, '"')               // double quotes
-                    .replace(/\u2026/g, "...")                     // ellipsis
-                    .replace(/\u00A0/g, " ")                       // non-breaking space
-                    .replace(/\u2039/g, "<")               // angle quotes
-                    .replace(/\u203A/g, ">")               // angle quotes
-                    .replace(/\u00AB/g, "<<")               // angle quotes
-                    .replace(/\u00BB/g, ">>")               // angle quotes
-                    .replace(/[\u201E\u201F]/g, '"')               // alt double quotes
-                    .replace(/\u2032/g, "'") // single prime
-                    .replace(/\u2033/g, "\""))} // double prime
+                  onChange={(e) =>
+                    set_editing_readme_val(
+                      e.target.value
+                        .replace(/[\u2013\u2014\u2010]/g, "-") // dashes/hyphen
+                        .replace(/[\u2018\u2019]/g, "'") // single quotes
+                        .replace(/[\u201C\u201D]/g, '"') // double quotes
+                        .replace(/\u2026/g, "...") // ellipsis
+                        .replace(/\u00A0/g, " ") // non-breaking space
+                        .replace(/\u2039/g, "<") // angle quotes
+                        .replace(/\u203A/g, ">") // angle quotes
+                        .replace(/\u00AB/g, "<<") // angle quotes
+                        .replace(/\u00BB/g, ">>") // angle quotes
+                        .replace(/[\u201E\u201F]/g, '"') // alt double quotes
+                        .replace(/\u2032/g, "'") // single prime
+                        .replace(/\u2033/g, '"')
+                    )
+                  } // double prime
                 />
               </components.layout.scrollable.Scrollable>
             </components.layout.stack.Cell>
@@ -1115,12 +1157,12 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
                       on_click={
                         editing_readme !== undefined
                           ? () => {
-                            sector.current.set_readme(
-                              editing_readme,
-                              editing_readme_val
-                            );
-                            set_editing_readme(undefined);
-                          }
+                              sector.current.set_readme(
+                                editing_readme,
+                                editing_readme_val
+                              );
+                              set_editing_readme(undefined);
+                            }
                           : undefined
                       }
                     >
@@ -1193,7 +1235,11 @@ const SectorActual = (props: {init_info: types.sector.SectorDesc, id: string}) =
                     ? undefined
                     : (e) => set_command_value(e.target.value)
                 }
-                on_enter={running_command ? undefined : () => process_command(command_value)}
+                on_enter={
+                  running_command
+                    ? undefined
+                    : () => process_command(command_value)
+                }
                 font="MONO"
                 bare
               />
@@ -1214,9 +1260,19 @@ const Sector = () => {
     queryFn: utils
       .pipe<2>()
       .s(1, () => search_params.get("id"))
-      .g(1, v => v === null ? navigate("/") : undefined)
-      .gsa(1, 0, async v => v === null ? undefined : await fetch(`${utils.asite.PY_BACKEND}/api/sector?id=${encodeURIComponent(v)}`))
-      .gsa(0, 0, async (v) => v === undefined ? undefined : (await v.json()) as types.sector.SectorDesc)
+      .g(1, (v) => (v === null ? navigate("/") : undefined))
+      .gsa(1, 0, async (v) =>
+        v === null
+          ? undefined
+          : await fetch(
+              `${utils.asite.PY_BACKEND}/api/sector?id=${encodeURIComponent(v)}`
+            )
+      )
+      .gsa(0, 0, async (v) =>
+        v === undefined
+          ? undefined
+          : ((await v.json()) as types.sector.SectorDesc)
+      )
       .ex()
       .vc(0),
     refetchOnMount: true,
@@ -1227,7 +1283,11 @@ const Sector = () => {
     placeholderData: undefined,
   });
 
-  return query_sector.data === undefined ? <></> : <SectorActual init_info={query_sector.data} id={search_params.get("id")!} />
+  return query_sector.data === undefined ? (
+    <></>
+  ) : (
+    <SectorActual init_info={query_sector.data} id={search_params.get("id")!} />
+  );
 };
 
 export { Sector };

@@ -48,11 +48,11 @@ def main():
     
     @app.get("/api/worldz", response_class=JSONResponse)
     def get_api_worldz():
-        return JSONResponse(jsonable_encoder(worldz.get_sectors()))
+        return JSONResponse(jsonable_encoder(worldz.get_sectors(False)))
     
     @app.get("/api/sector", response_class=JSONResponse)
     def get_api_sector(id: str = Query(...)):
-        return JSONResponse(jsonable_encoder(worldz.get_sectors()[id]))
+        return JSONResponse(jsonable_encoder(worldz.get_sectors(True)[id]))
     
     @app.post("/api/write_sector", response_class=Response)
     async def post_api_write_sector(request: Request, id: str = Query(...)):
@@ -85,6 +85,16 @@ def main():
     @app.get("/api/obj_file", response_class=FileResponse)
     def get_api_obj_file(folder: str = Query(...), name: str = Query(...), file: str = Query(...)):
         return FileResponse(path=worldz.get_obj_file(folder, name, file))
+    
+    @app.post("/api/create_sector", response_class=Response)
+    def post_api_create_sector(name: str = Query(...)):
+        worldz.create_sector(name)
+        return Response(status_code=200)
+    
+    @app.post("/api/delete_sector", response_class=Response)
+    def post_api_delete_sector(id: str = Query(...)):
+        worldz.delete_sector(id)
+        return Response(status_code=200)
 
     uvicorn.run(app, host="0.0.0.0", port=19423)
 
