@@ -518,6 +518,12 @@ const SectorActual = (props: {
       let _do_clear = false;
       let _running_from_cmd = true;
 
+      (window as any).UNREF_EVAL_OBJ = [];
+
+      _running_from_cmd = Math.random() < 10;
+      (window as any).UNREF_EVAL_OBJ.push(_running_from_cmd);
+      _running_from_cmd = true;
+
       const clear = async () => {
         _do_clear = true;
         return [];
@@ -924,8 +930,6 @@ const SectorActual = (props: {
         console.error(err);
         _out_val = ["Error", (err as any).toString()];
       }
-
-      (window as any).UNREF_EVAL_OBJ = [];
 
       (window as any).UNREF_EVAL_OBJ.push(help);
       (window as any).UNREF_EVAL_OBJ.push(clear);
