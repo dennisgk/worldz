@@ -801,7 +801,9 @@ class Sector {
   }
 
   #scale_me(obj: deps.three.Object3D) {
-    obj.updateMatrixWorld(true);
+    try {
+      obj.updateMatrixWorld(true);
+    } catch {}
     let box = new deps.three.Box3().setFromObject(obj);
     let size = new deps.three.Vector3();
     box.getSize(size);
