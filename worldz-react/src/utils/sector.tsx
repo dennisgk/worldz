@@ -1162,7 +1162,11 @@ class Sector {
 
     this.#objects[name].local.traverse((child: any) => {
       if (child.isMesh) {
-        child.material = new deps.three.MeshStandardMaterial({ color: color });
+        if (child.material.visible) {
+          child.material = new deps.three.MeshStandardMaterial({
+            color: color,
+          });
+        }
       }
     });
     this.#objects[name].mat = color;
