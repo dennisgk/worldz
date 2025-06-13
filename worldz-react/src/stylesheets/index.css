@@ -5,6 +5,8 @@
 @import "./scroll_override.css";
 @import "./spinner.css";
 
+@import "katex/dist/katex.min.css";
+
 * {
   outline: none;
 }

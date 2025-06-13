@@ -480,6 +480,7 @@ const SectorActual = (props: {
         "upload_gltf_glb(folder, name)",
         "upload_fbx(folder, name)",
         "upload_stl(folder, name)",
+        "upload_image(folder, name)",
         "load(folder, name, local_name)",
         "load_text(text, local_name)",
         "create_tp_here(name)",
@@ -648,6 +649,18 @@ const SectorActual = (props: {
         }
 
         return _upload_obj(files, folder, name, "STL");
+      };
+      const upload_image = async (folder: string, name: string) => {
+        if (folder === undefined || name === undefined) {
+          return ["Argument error"];
+        }
+
+        let files = await open_file_dialog("image/*");
+        if (files.length !== 1) {
+          return ["File needed"];
+        }
+
+        return _upload_obj(files, folder, name, "IMAGE");
       };
 
       const load = async (folder: string, name: string, local_name: string) => {
@@ -943,6 +956,7 @@ const SectorActual = (props: {
       (window as any).UNREF_EVAL_OBJ.push(upload_gltf_glb);
       (window as any).UNREF_EVAL_OBJ.push(upload_fbx);
       (window as any).UNREF_EVAL_OBJ.push(upload_stl);
+      (window as any).UNREF_EVAL_OBJ.push(upload_image);
       (window as any).UNREF_EVAL_OBJ.push(load);
       (window as any).UNREF_EVAL_OBJ.push(load_text);
 
@@ -1069,7 +1083,10 @@ const SectorActual = (props: {
                     className="prose prose-invert"
                     style={{ maxWidth: "100%" }}
                   >
-                    <deps.markdown.Markdown remarkPlugins={[deps.remarkGfm]}>
+                    <deps.markdown.Markdown
+                      remarkPlugins={[deps.remarkGfm, deps.remarkMath]}
+                      rehypePlugins={[deps.rehypeKatex]}
+                    >
                       {sector.current.get_readme(opening_readme)}
                     </deps.markdown.Markdown>
                   </div>

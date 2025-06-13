@@ -6,8 +6,10 @@ import * as three from "three";
 import * as three_addons from "../deps/three_addons";
 import nipplejs from "nipplejs";
 import * as rapier from "@dimforge/rapier3d";
-import * as markdown from "../deps/markdown"
+import * as markdown from "../deps/markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 
 export {
   router,
@@ -20,4 +22,6 @@ export {
   markdown,
   remarkGfm,
   rapier,
+  remarkMath,
+  rehypeKatex,
 };

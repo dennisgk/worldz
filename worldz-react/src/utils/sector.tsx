@@ -39,7 +39,9 @@ class Sector {
     );
   };
   #connections: Array<{
-    local: deps.three.Object3D;
+    local1: deps.three.Object3D;
+    local2: deps.three.Object3D;
+    local3: deps.three.Object3D;
     name1: string;
     name2: string;
   }>;
@@ -340,9 +342,13 @@ class Sector {
           up,
           closdir.clone().normalize()
         );
-        this.#connections[i].local.setRotationFromQuaternion(quaternion);
-        this.#connections[i].local.position.copy(midpoint);
-        this.#connections[i].local.scale.set(1, length, 1);
+        this.#connections[i].local1.setRotationFromQuaternion(quaternion);
+        this.#connections[i].local1.position.copy(midpoint);
+        this.#connections[i].local1.scale.set(1, length, 1);
+        this.#connections[i].local2.position.copy(closestA);
+        this.#connections[i].local2.scale.set(1, 1, 1);
+        this.#connections[i].local3.position.copy(closestB);
+        this.#connections[i].local3.scale.set(1, 1, 1);
       }
 
       if (this.#edit_obj !== undefined) {
@@ -635,13 +641,7 @@ class Sector {
     if (name1 === name2) return ["Can not connect to self"];
     if (!(name1 in this.#objects && name2 in this.#objects))
       return ["Not present"];
-    if (
-      this.#connections.some(
-        (v) =>
-          (v.name1 === name1 && v.name2 === name2) ||
-          (v.name1 === name2 && v.name2 === name1)
-      )
-    )
+    if (this.#connections.some((v) => v.name1 === name1 && v.name2 === name2))
       return ["Already exists"];
 
     const radius = 0.05;
@@ -687,11 +687,42 @@ class Sector {
     mesh.position.copy(midpoint);
     mesh.scale.set(1, length, 1);
 
+    const geometryGreenPole = new deps.three.SphereGeometry(radius, 4, 4);
+    const geometryRedPole = new deps.three.SphereGeometry(radius, 4, 4);
+
+    const glowGreenMaterial = new deps.three.MeshBasicMaterial({
+      color: 0x00ff00,
+      transparent: true,
+      opacity: 0.7,
+      blending: deps.three.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const glowRedMaterial = new deps.three.MeshBasicMaterial({
+      color: 0xff0000,
+      transparent: true,
+      opacity: 0.7,
+      blending: deps.three.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const mesh2 = new deps.three.Mesh(geometryGreenPole, glowGreenMaterial);
+    const mesh3 = new deps.three.Mesh(geometryRedPole, glowRedMaterial);
+
+    mesh2.position.copy(closestA);
+    mesh2.scale.set(1, 1, 1);
+    mesh3.position.copy(closestB);
+    mesh3.scale.set(1, 1, 1);
+
     this.#scene.add(mesh);
+    this.#scene.add(mesh2);
+    this.#scene.add(mesh3);
     this.#connections.push({
       name1: name1,
       name2: name2,
-      local: mesh,
+      local1: mesh,
+      local2: mesh2,
+      local3: mesh3,
     });
 
     return ["Connected"];
@@ -699,14 +730,16 @@ class Sector {
 
   disconnect(name1: string, name2: string) {
     let removed = this.#connections.filter(
-      (v) =>
-        (v.name1 === name1 && v.name2 === name2) ||
-        (v.name1 === name2 && v.name2 === name1)
+      (v) => v.name1 === name1 && v.name2 === name2
     );
 
     if (removed.length < 1) return ["Does not exist"];
 
-    removed.forEach((v) => this.#scene.remove(v.local));
+    removed.forEach((v) => {
+      this.#scene.remove(v.local1);
+      this.#scene.remove(v.local2);
+      this.#scene.remove(v.local3);
+    });
     this.#connections = this.#connections.filter((v) => !removed.includes(v));
     return ["Disconnected"];
   }
@@ -806,7 +839,40 @@ class Sector {
       this.#scale_me(cached);
     }
     let remove: Array<any> = [];
-    cached.traverse((e: any) => e.isLight && remove.push(e));
+    cached.traverse((e: any) => {
+      if (e.isLight) {
+        remove.push(e);
+      }
+      if (e.isBone) {
+        remove.push(e);
+      }
+
+      // Remove skinned meshes
+      if (e.isSkinnedMesh) {
+        try {
+          const ed_mesh = new deps.three.Mesh(e.geometry, e.material);
+          ed_mesh.applyMatrix4(e.matrixWorld);
+          e.parent?.add(ed_mesh);
+        } catch {}
+        remove.push(e);
+      }
+
+      if (e.skeleton) {
+        try {
+          delete e.skeleton;
+        } catch {}
+      }
+
+      // Optional: remove morph targets, too
+      if (e.morphTargetInfluences || e.morphTargetDictionary) {
+        try {
+          delete e.morphTargetInfluences;
+        } catch {}
+        try {
+          delete e.morphTargetDictionary;
+        } catch {}
+      }
+    });
     remove.forEach((light) => {
       try {
         light.parent.remove(light);
@@ -864,7 +930,7 @@ class Sector {
           loader.load(
             url,
             (obj: any) => {
-              let new_obj = bef_do(obj)
+              let new_obj = bef_do(obj);
               this.#cache.set(url, new_obj);
               resolve();
             },
@@ -879,9 +945,11 @@ class Sector {
 
     let create_centered_parent = (grp: any) => {
       let bbox: any = undefined;
-      try{
-      bbox = new deps.three.Box3().setFromObject(grp);
-      }catch{console.error(grp)}
+      try {
+        bbox = new deps.three.Box3().setFromObject(grp);
+      } catch {
+        console.error(grp);
+      }
 
       const size = new deps.three.Vector3();
       bbox.getSize(size);
@@ -909,8 +977,11 @@ class Sector {
     switch (model) {
       case "GLTF_GLB": {
         let loader = new deps.three_addons.GLTFLoader();
-        let cached = await get_cached(files[0], loader, (obj) => create_centered_parent(obj.scene.clone(true)), (obj) =>
-          obj.clone(true)
+        let cached = await get_cached(
+          files[0],
+          loader,
+          (obj) => create_centered_parent(obj.scene.clone(true)),
+          (obj) => obj.clone(true)
         );
 
         this.#scene.add(cached);
@@ -935,7 +1006,12 @@ class Sector {
       }
       case "FBX": {
         let loader = new deps.three_addons.FBXLoader();
-        let cached = await get_cached(files[0], loader, obj => create_centered_parent(obj.clone(true)), (obj) => obj.clone(true));
+        let cached = await get_cached(
+          files[0],
+          loader,
+          (obj) => create_centered_parent(obj.clone(true)),
+          (obj) => obj.clone(true)
+        );
 
         this.#scene.add(cached);
         this.#do_prs(cached, init_pos, init_rot, init_scale);
@@ -959,12 +1035,20 @@ class Sector {
       }
       case "STL": {
         let loader = new deps.three_addons.STLLoader();
-        let cached = await get_cached(files[0], loader, obj => {obj.center(); 
+        let cached = await get_cached(
+          files[0],
+          loader,
+          (obj) => {
+            obj.center();
 
-        let material = new deps.three.MeshStandardMaterial({
-          color: 0xffffff,
-        });
-        let mesh = new deps.three.Mesh(obj, material); return create_centered_parent(mesh);}, (obj) => obj.clone(true));
+            let material = new deps.three.MeshStandardMaterial({
+              color: 0xffffff,
+            });
+            let mesh = new deps.three.Mesh(obj, material);
+            return create_centered_parent(mesh);
+          },
+          (obj) => obj.clone(true)
+        );
 
         this.#scene.add(cached);
         this.#do_prs(cached, init_pos, init_rot, init_scale);
@@ -980,7 +1064,42 @@ class Sector {
           readme: init_readme,
         };
 
-        if(init_mat !== null){
+        if (init_mat !== null) {
+          this.override_mat(new_name, init_mat);
+        }
+
+        return ["Loaded"];
+      }
+      case "IMAGE": {
+        let loader = new deps.three.TextureLoader();
+        let cached = await get_cached(
+          files[0],
+          loader,
+          (obj) => {
+            const img_material = new deps.three.MeshBasicMaterial({ map: obj });
+            const img_geo = new deps.three.BoxGeometry(); // or any geometry
+            return create_centered_parent(
+              new deps.three.Mesh(img_geo, img_material)
+            );
+          },
+          (obj) => obj.clone(true)
+        );
+
+        this.#scene.add(cached);
+        this.#do_prs(cached, init_pos, init_rot, init_scale);
+
+        let new_name = this.#get_free_name(local_name);
+        this.#objects[new_name] = {
+          type: "LOAD",
+          folder: folder,
+          name: name,
+          local: cached,
+          mat: init_mat,
+          local_highlight: undefined,
+          readme: init_readme,
+        };
+
+        if (init_mat !== null) {
           this.override_mat(new_name, init_mat);
         }
 
@@ -1270,10 +1389,8 @@ class Sector {
     let rem_conn = this.#connections.filter(
       (v) => v.name1 === name || v.name2 === name
     );
-    for (let i = 0; i < rem_conn.length; i++) {
-      this.#scene.remove(rem_conn[i].local);
-    }
-    this.#connections = this.#connections.filter((v) => !rem_conn.includes(v));
+
+    rem_conn.forEach((v) => this.disconnect(v.name1, v.name2));
   }
 
   get_ground_size() {
