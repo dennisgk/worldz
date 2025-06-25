@@ -96,7 +96,7 @@ def main():
         worldz.delete_sector(id)
         return Response(status_code=200)
 
-    uvicorn.run(app, host="0.0.0.0", port=8000) # 19423 # 8000
+    uvicorn.run(app, host="0.0.0.0", port=19423) # 19423 # 8000
 
 if __name__ == "__main__":
     main()

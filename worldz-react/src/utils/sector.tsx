@@ -23,6 +23,7 @@ class Sector {
   #edit_mode: "POS" | "ROT" | "SCALE";
 
   #is_flying: boolean;
+  #last_flying_y: number;
   #flying_speed: { up: number; down: number };
 
   // save all here including speed mult
@@ -211,6 +212,8 @@ class Sector {
     this.#flying_speed = { up: 0, down: 0 };
 
     // Controls
+    this.#last_flying_y = 0;
+
     this.#controls = new deps.three_addons.PointerLockControls(
       this.#camera,
       this.#renderer.domElement
@@ -476,14 +479,22 @@ class Sector {
         const dampedVel = new deps.rapier.Vector3(
           vel.x * (1 - damping * dt),
           this.#is_flying
-            ? (-this.#world.gravity.y * dt * 5) / 7 +
-            this.#flying_speed.up -
+            ? this.#flying_speed.up -
             this.#flying_speed.down
             : vel.y * (1 - damping_y * dt),
           vel.z * (1 - damping * dt)
         );
 
         this.#player_rigid_body.setLinvel(dampedVel, true);
+
+        if(this.#is_flying){
+          if((this.#flying_speed.up - this.#flying_speed.down) === 0){
+            this.#player_rigid_body.setTranslation(new deps.rapier.Vector3(this.#player_rigid_body.translation().x, this.#last_flying_y, this.#player_rigid_body.translation().z), true);
+          }
+          else{
+            this.#last_flying_y = this.#player_rigid_body.translation().y;
+          }
+        }
 
         last_intersect = last_intersect + dt;
         if (last_intersect > 0.25) {
@@ -1224,6 +1235,9 @@ class Sector {
     if (this.#is_flying === false) {
       this.#flying_speed.up = 0;
       this.#flying_speed.down = 0;
+    }
+    else{
+      this.#last_flying_y = this.#player_rigid_body.translation().y;
     }
   }
 

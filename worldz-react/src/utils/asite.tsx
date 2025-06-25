@@ -39,8 +39,8 @@ const match_path = <TRet = any,>(
 
 //const PY_BACKEND = "http://192.168.1.35:19423";
 //const PY_BACKEND = "http://localhost:19423";
-//const PY_BACKEND = "";
-const PY_BACKEND = "https://8000code.kountouris.org";
+const PY_BACKEND = "";
+//const PY_BACKEND = "https://8000code.kountouris.org";
 //const PY_BACKEND = "https://worldz.kountouris.org";
 //const PY_BACKEND = window.location.origin;
 //const PY_BACKEND = "https://zxvs4l4q-19423.use2.devtunnels.ms";
