@@ -26,11 +26,13 @@ const SectorActual = (props: {
   >(undefined);
 
   const info_text_ref = utils.react.use_ref<HTMLSpanElement>(null);
+  const info_text_last_upd = utils.react.use_ref("");
+  const info_text_peri = utils.react.use_ref("");
 
   const mobile_pitch = utils.react.use_ref(0);
   const mobile_yaw = utils.react.use_ref(0);
 
-  const ex_open_readme = (name: string) => {
+  const ex_open_readme = (name: string, virt_running_comm: boolean): string | undefined => {
     let txt = (sector.current.get_readme(name) ?? "").split(
       /^#!\/worldz\/sector\r?\n/g
     );
@@ -39,16 +41,21 @@ const SectorActual = (props: {
         sector.current.unlock();
       }
       set_opening_readme(name);
+      return undefined;
     }
 
     if (txt.length === 2) {
-      process_command(
-        `let user_comm = async() => {
+      if(virt_running_comm) return;
+
+      let new_comm_op = `let user_comm = async() => {
           _running_from_cmd = false;
           ${txt[1]}
-        }; user_comm();`,
+        }; user_comm();`;
+      process_command(
+        new_comm_op,
         false
       );
+      return new_comm_op;
     }
   };
 
@@ -64,7 +71,12 @@ const SectorActual = (props: {
       (elem) => mount_ref!.current!.appendChild(elem),
       (text) => {
         if (info_text_ref.current === null) return;
-        info_text_ref.current.innerText = text;
+        if (info_text_last_upd.current === text) return;
+
+        let n_text = `${info_text_peri.current}${text}`;
+
+        info_text_ref.current.innerText = n_text;
+        info_text_last_upd.current = n_text;
       },
       props.init_info,
       props.id
@@ -85,9 +97,9 @@ const SectorActual = (props: {
 
   utils.react.use_effect(() => {
     sector.current.open_readme = (name) => {
-      ex_open_readme(name);
+      ex_open_readme(name, running_command);
     };
-  }, [command_history, command_overlay]);
+  }, [command_history, command_overlay, running_command]);
 
   utils.react.use_effect(() => {
     if (editing_readme !== undefined) {
@@ -494,6 +506,10 @@ const SectorActual = (props: {
         "set_obj_pos(name, x, y, z)",
         "set_obj_rot(name, x, y, z)",
         "set_obj_scale(name, x, y, z)",
+        "get_player_pos() -> scripting? [number, number, number]",
+        "set_click_action_default()",
+        "set_click_action_readme(name)",
+        "get_click_action()",
         "edit_obj(name)",
         "override_mat(name, color)",
         "reset_mat(name)",
@@ -513,10 +529,14 @@ const SectorActual = (props: {
         "get_cust_var(name) -> scripting? any",
         "set_cust_var(name, value)",
         "delete_cust_var(name)",
+        "get_tmp_var_obj() -> scripting? object",
+        "get_highlighted_objs()",
+        "set_info_text(text)",
         "save()",
       ];
 
       let _do_clear = false;
+      let _did_spawn_child = false;
       let _running_from_cmd = true;
 
       (window as any).UNREF_EVAL_OBJ = [];
@@ -715,6 +735,27 @@ const SectorActual = (props: {
 
       const ls_objs = async () => sector.current.ls_objs();
 
+      const get_player_pos = async () => _running_from_cmd ? sector.current.get_player_pos_sa() : sector.current.get_player_pos();
+
+      const set_click_action_default = async() => sector.current.set_click_action_default();
+      const set_click_action_readme = async(name: string) => name === undefined ? ["Argument error"] :  sector.current.set_click_action_readme(name);
+      const get_click_action = async() => sector.current.get_click_action();
+
+      const get_tmp_var_obj = async() => {
+        if((window as any).WORLDZ_TMP_VAR_OBJ === undefined){
+          (window as any).WORLDZ_TMP_VAR_OBJ = {};
+        }
+
+        if(_running_from_cmd){
+          return [JSON.stringify((window as any).WORLDZ_TMP_VAR_OBJ)];
+        }
+        else{
+          return (window as any).WORLDZ_TMP_VAR_OBJ;
+        }
+      }
+
+      const get_highlighted_objs = async() => sector.current.get_highlighted_objs();
+
       const get_obj_pos = async (name: string) =>
         name === undefined
           ? ["Argument error"]
@@ -842,8 +883,9 @@ const SectorActual = (props: {
       const open_readme = async (name: string) => {
         if (name === undefined) return ["Argument error"];
 
-        ex_open_readme(name);
-        return ["Opened"];
+        let new_pos_com = ex_open_readme(name, false);
+        _did_spawn_child = new_pos_com !== undefined;
+        return [];
       };
 
       const ls_connects = async () =>
@@ -924,6 +966,16 @@ const SectorActual = (props: {
         return ["Deleted"];
       };
 
+      const set_info_text = async (text : string) => {
+        if(text === undefined){
+          return ["Argument error"];
+        }
+
+        info_text_peri.current = text;
+        info_text_last_upd.current = "";
+        return ["Set"];
+      }
+
       const save = async () => await sector.current.save();
 
       let _out_val: Array<string> = [];
@@ -966,6 +1018,7 @@ const SectorActual = (props: {
       (window as any).UNREF_EVAL_OBJ.push(tp);
 
       (window as any).UNREF_EVAL_OBJ.push(ls_objs);
+      (window as any).UNREF_EVAL_OBJ.push(get_player_pos);
       (window as any).UNREF_EVAL_OBJ.push(get_obj_pos);
       (window as any).UNREF_EVAL_OBJ.push(get_obj_rot);
       (window as any).UNREF_EVAL_OBJ.push(get_obj_scale);
@@ -978,6 +1031,10 @@ const SectorActual = (props: {
       (window as any).UNREF_EVAL_OBJ.push(exit_edit);
       (window as any).UNREF_EVAL_OBJ.push(set_speed);
       (window as any).UNREF_EVAL_OBJ.push(get_speed);
+      (window as any).UNREF_EVAL_OBJ.push(set_click_action_default);
+      (window as any).UNREF_EVAL_OBJ.push(set_click_action_readme);
+      (window as any).UNREF_EVAL_OBJ.push(get_click_action);
+      (window as any).UNREF_EVAL_OBJ.push(get_tmp_var_obj);
 
       (window as any).UNREF_EVAL_OBJ.push(open_readme);
       (window as any).UNREF_EVAL_OBJ.push(edit_readme);
@@ -994,13 +1051,18 @@ const SectorActual = (props: {
       (window as any).UNREF_EVAL_OBJ.push(get_cust_var);
       (window as any).UNREF_EVAL_OBJ.push(set_cust_var);
       (window as any).UNREF_EVAL_OBJ.push(delete_cust_var);
+      (window as any).UNREF_EVAL_OBJ.push(get_highlighted_objs);
+      (window as any).UNREF_EVAL_OBJ.push(set_info_text);
       (window as any).UNREF_EVAL_OBJ.push(save);
 
-      set_running_command(false);
+      if(!_did_spawn_child) set_running_command(false);
+
       if (_do_clear) {
         set_command_history([]);
       } else {
-        set_command_history([...command_history, [cmd_val, _out_val]]);
+        if(!_did_spawn_child){
+          set_command_history([...command_history, [cmd_val, _out_val]]);
+        }
       }
     };
 

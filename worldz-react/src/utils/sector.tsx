@@ -14,6 +14,7 @@ class Sector {
   #world: deps.rapier.World;
 
   open_readme: (name: string) => void;
+  #click_action_readme: string | undefined;
 
   #text_font: deps.three_addons.Font;
 
@@ -31,6 +32,7 @@ class Sector {
     [name: string]: {
       local: deps.three.Object3D;
       local_highlight: undefined | deps.three.Object3D;
+      local_highlight_dist: number;
       readme: string;
       mat: number | null;
     } & (
@@ -78,7 +80,8 @@ class Sector {
 
     this.glob_speed_mult = init_info.glob_speed_mult;
 
-    this.open_readme = () => {};
+    this.open_readme = () => { };
+    this.#click_action_readme = undefined;
 
     // create cache
     this.#cache = new Map<string, deps.three.Group>();
@@ -389,7 +392,6 @@ class Sector {
                   )
                 )
             );
-
             update_info(`r${this.get_obj_rot_sa(this.#edit_obj)[0]}`);
             break;
           }
@@ -468,8 +470,8 @@ class Sector {
           vel.x * (1 - damping * dt),
           this.#is_flying
             ? (-this.#world.gravity.y * dt * 5) / 7 +
-              this.#flying_speed.up -
-              this.#flying_speed.down
+            this.#flying_speed.up -
+            this.#flying_speed.down
             : vel.y * (1 - damping_y * dt),
           vel.z * (1 - damping * dt)
         );
@@ -507,6 +509,7 @@ class Sector {
             let obj_name = Object.keys(this.#objects)[on];
             if (this.#objects[obj_name].local_highlight !== undefined) {
               let keep_highlight = false;
+              let highlight_new_dist = 0;
 
               for (let i = 0; i < intersects.length; i++) {
                 if (
@@ -517,11 +520,15 @@ class Sector {
                   intersects[i].distance <= 6
                 ) {
                   keep_highlight = true;
+                  highlight_new_dist = intersects[i].distance;
                   break;
                 }
               }
 
-              if (!keep_highlight) {
+              if(keep_highlight){
+                this.#objects[obj_name].local_highlight_dist = highlight_new_dist;
+              }
+              else {
                 this.#scene.remove(this.#objects[obj_name].local_highlight);
                 this.#objects[obj_name].local_highlight = undefined;
               }
@@ -562,6 +569,7 @@ class Sector {
                 glowBox.scale.multiplyScalar(1.1); // slightly larger than the object
                 this.#scene.add(glowBox);
                 this.#objects[obj_name].local_highlight = glowBox;
+                this.#objects[obj_name].local_highlight_dist = intersects[i].distance;
                 break;
               }
             }
@@ -571,13 +579,7 @@ class Sector {
         // UPDATE INFO
 
         update_info(
-          `${this.#is_flying ? "f" : ""}(${this.#player_rigid_body
-            .translation()
-            .x.toFixed(1)},${this.#player_rigid_body
-            .translation()
-            .y.toFixed(1)},${this.#player_rigid_body
-            .translation()
-            .z.toFixed(1)})`
+          `${this.#is_flying ? "f" : ""}${this.get_player_pos_sa()}`
         );
 
         // Sync camera to capsule
@@ -604,6 +606,10 @@ class Sector {
     return false;
   }
 
+  get_highlighted_objs(){
+    return [...Object.keys(this.#objects).filter(v => this.#objects[v].local_highlight !== undefined)].sort((a, b) => this.#objects[b].local_highlight_dist - this.#objects[a].local_highlight_dist);
+  }
+
   get_readme(name: string) {
     if (!(name in this.#objects)) return;
 
@@ -623,18 +629,39 @@ class Sector {
   click() {
     if (this.#edit_obj !== undefined) return;
 
-    let filt: undefined | string = undefined;
-    for (let i = 0; i < Object.keys(this.#objects).length; i++) {
-      let k = Object.keys(this.#objects)[i];
-      if (this.#objects[k].local_highlight !== undefined) {
-        filt = k;
-        break;
+    if(this.#click_action_readme === undefined){
+      let filt: undefined | string = undefined;
+      let closest_dist: undefined | number = undefined;
+      for (let i = 0; i < Object.keys(this.#objects).length; i++) {
+        let k = Object.keys(this.#objects)[i];
+        if (this.#objects[k].local_highlight !== undefined && (closest_dist === undefined || this.#objects[k].local_highlight_dist < closest_dist)) {
+          filt = k;
+        }
       }
+
+      if (filt === undefined) return;
+
+      this.open_readme(filt);
     }
+    else{
+      this.open_readme(this.#click_action_readme);
+    }
+  }
 
-    if (filt === undefined) return;
+  set_click_action_default() {
+    this.#click_action_readme = undefined;
+    return ["Set"]
+  }
 
-    this.open_readme(filt);
+  set_click_action_readme(name: string){
+    if (!(name in this.#objects)) return ["Not found"];
+
+    this.#click_action_readme = name;
+    return ["Set"];
+  }
+
+  get_click_action(){
+    return this.#click_action_readme === undefined ? ["DEFAULT"] : ["README", this.#click_action_readme];
   }
 
   connect(name1: string, name2: string) {
@@ -804,6 +831,7 @@ class Sector {
       local: group,
       mat: init_mat,
       local_highlight: undefined,
+      local_highlight_dist: 0,
       readme: init_readme,
       text: text,
     };
@@ -853,37 +881,37 @@ class Sector {
           const ed_mesh = new deps.three.Mesh(e.geometry, e.material);
           ed_mesh.applyMatrix4(e.matrixWorld);
           e.parent?.add(ed_mesh);
-        } catch {}
+        } catch { }
         remove.push(e);
       }
 
       if (e.skeleton) {
         try {
           delete e.skeleton;
-        } catch {}
+        } catch { }
       }
 
       // Optional: remove morph targets, too
       if (e.morphTargetInfluences || e.morphTargetDictionary) {
         try {
           delete e.morphTargetInfluences;
-        } catch {}
+        } catch { }
         try {
           delete e.morphTargetDictionary;
-        } catch {}
+        } catch { }
       }
     });
     remove.forEach((light) => {
       try {
         light.parent.remove(light);
-      } catch {}
+      } catch { }
     });
   }
 
   #scale_me(obj: deps.three.Object3D) {
     try {
       obj.updateMatrixWorld(true);
-    } catch {}
+    } catch { }
     let box = new deps.three.Box3().setFromObject(obj);
     let size = new deps.three.Vector3();
     box.getSize(size);
@@ -919,11 +947,10 @@ class Sector {
       bef_do: (grp: any) => any,
       clone: (grp: any) => any
     ) => {
-      let url = `${
-        utils.asite.PY_BACKEND
-      }/api/obj_file?folder=${encodeURIComponent(
-        folder
-      )}&name=${encodeURIComponent(name)}&file=${encodeURIComponent(file)}`;
+      let url = `${utils.asite.PY_BACKEND
+        }/api/obj_file?folder=${encodeURIComponent(
+          folder
+        )}&name=${encodeURIComponent(name)}&file=${encodeURIComponent(file)}`;
 
       if (!this.#cache.has(url)) {
         await new Promise<void>((resolve, reject) =>
@@ -995,6 +1022,7 @@ class Sector {
           local: cached,
           mat: init_mat,
           local_highlight: undefined,
+          local_highlight_dist: 0,
           readme: init_readme,
         };
 
@@ -1024,6 +1052,7 @@ class Sector {
           local: cached,
           mat: init_mat,
           local_highlight: undefined,
+          local_highlight_dist: 0,
           readme: init_readme,
         };
 
@@ -1061,6 +1090,7 @@ class Sector {
           local: cached,
           mat: init_mat,
           local_highlight: undefined,
+          local_highlight_dist: 0,
           readme: init_readme,
         };
 
@@ -1096,6 +1126,7 @@ class Sector {
           local: cached,
           mat: init_mat,
           local_highlight: undefined,
+          local_highlight_dist: 0,
           readme: init_readme,
         };
 
@@ -1240,13 +1271,13 @@ class Sector {
 
     try {
       this.#controls.lock();
-    } catch {}
+    } catch { }
   }
 
   unlock() {
     try {
       this.#controls.unlock();
-    } catch {}
+    } catch { }
   }
 
   camera_quat_set(euler: deps.three.Euler) {
@@ -1257,19 +1288,34 @@ class Sector {
     return Object.keys(this.#objects);
   }
 
+  get_player_pos() {
+    let cur_trans = this.#player_rigid_body.translation();
+
+    return [
+      cur_trans.x,
+      cur_trans.y,
+      cur_trans.z,
+    ]
+  }
+
+  get_player_pos_sa() {
+    let val = this.get_player_pos();
+    return [`(${val[0].toFixed(1)},${val[1].toFixed(1)},${val[2].toFixed(1)})`]
+  }
+
   get_obj_pos_sa(name: string) {
     let val = this.get_obj_pos(name);
-    return [`(${val[0]},${val[1]},${val[2]})`];
+    return [`(${val[0].toFixed(4)},${val[1].toFixed(4)},${val[2].toFixed(4)})`];
   }
 
   get_obj_rot_sa(name: string) {
     let val = this.get_obj_rot(name);
-    return [`(${val[0]},${val[1]},${val[2]})`];
+    return [`(${val[0].toFixed(4)},${val[1].toFixed(4)},${val[2].toFixed(4)})`];
   }
 
   get_obj_scale_sa(name: string) {
     let val = this.get_obj_scale(name);
-    return [`(${val[0]},${val[1]},${val[2]})`];
+    return [`(${val[0].toFixed(4)},${val[1].toFixed(4)},${val[2].toFixed(4)})`];
   }
 
   get_obj_pos(name: string) {
@@ -1330,7 +1376,7 @@ class Sector {
 
         try {
           is_vis = child.material.visible;
-        } catch {}
+        } catch { }
 
         if (is_vis) {
           child.material = new deps.three.MeshStandardMaterial({
