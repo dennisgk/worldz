@@ -401,17 +401,12 @@ class Sector {
             const scale_mult_size = new deps.three.Vector3();
             scale_mult_box.getSize(scale_mult_size); // size.x, size.y, size.z are in world units
 
-            // 2. Choose a reference size
-            const scale_mult_baseSize = 1.0; // This is the "normalized" size you want to scale from
-
-            // 3. Compute scaling factor based on bounding box magnitude
-            const scale_mult_currentSize = scale_mult_size.length(); // Use diagonal length for uniformity
-            const scale_mult_scaleFactor = scale_mult_baseSize / scale_mult_currentSize;
+            let scale_mult_add_num = (this.#objects[this.#edit_obj].local.scale.clone().length() * (2.2 * dt * this.glob_speed_mult) / scale_mult_size.length())
 
             this.#objects[this.#edit_obj].local.scale.copy(
               this.#objects[this.#edit_obj].local.scale
                 .clone()
-                .add(direction.multiplyScalar(0.04 * dt * this.glob_speed_mult * scale_mult_scaleFactor))
+                .add(direction.multiplyScalar(Number.isFinite(scale_mult_add_num) ? scale_mult_add_num : 0))
             );
             update_info(`s${this.get_obj_scale_sa(this.#edit_obj)[0]}`);
             break;
