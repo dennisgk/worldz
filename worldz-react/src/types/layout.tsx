@@ -66,7 +66,7 @@ type HeightBase =
   | `${TailwindBreakpoint}:h-fit`
   | `${TailwindBreakpoint}:h-[${number}%]`
   | `${TailwindBreakpoint}:h-[${number}px]`
-  | `${TailwindBreakpoint}:h-${TailwindSize}`;
+  | `${TailwindBreakpoint}:h-${TailwindSize}` | "h-[100dvh]";
 
 type Width = WidthBase | Array<WidthBase>;
 type Height = HeightBase | Array<HeightBase>;

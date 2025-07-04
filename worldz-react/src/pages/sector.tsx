@@ -1123,14 +1123,14 @@ const SectorActual = (props: {
             top: 0,
             left: 0,
             width: "100vw",
-            height: "100vh",
+            height: "h-full",
             backgroundColor: "#000000FF",
             zIndex: 40,
             pointerEvents: "auto",
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <components.layout.container.Container width="w-full" height="h-full">
+          <components.layout.container.Container width="w-full" height="h-[100dvh]">
             <components.layout.stack.Stack
               direction="VERTICAL"
               overflow="HIDDEN"
@@ -1188,7 +1188,7 @@ const SectorActual = (props: {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <components.layout.container.Container width="w-full" height="h-full">
+        <components.layout.container.Container width="w-full" height="h-[100dvh]">
           <components.layout.stack.Stack direction="VERTICAL" overflow="HIDDEN">
             <components.layout.stack.Cell>
               {editing_readme ?? ""}
@@ -1279,7 +1279,7 @@ const SectorActual = (props: {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <components.layout.container.Container width="w-full" height="h-full">
+        <components.layout.container.Container width="w-full" height="h-[100dvh]">
           <components.layout.stack.Stack direction="VERTICAL" overflow="HIDDEN">
             <components.layout.stack.Cell grow overflow="HIDDEN">
               <components.layout.scrollable.Scrollable

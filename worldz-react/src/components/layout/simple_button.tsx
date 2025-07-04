@@ -13,6 +13,8 @@ type SimpleButtonProps = types.react.OptionalChildrenProps & {
 
 const SimpleButton = (props: SimpleButtonProps) => {
   const level = utils.react.use_context(components.layout.level.Context);
+  const touch_start_x = utils.react.use_ref(0);
+  const touch_start_y = utils.react.use_ref(0);
 
   return (
     <a
@@ -32,7 +34,18 @@ const SimpleButton = (props: SimpleButtonProps) => {
       ].join_class_name()}
       {...(utils.doc.is_mobile()
         ? {
+            onTouchStart: (ev) => {
+              touch_start_x.current = ev.changedTouches[0].clientX;
+              touch_start_y.current = ev.changedTouches[0].clientY;
+            },
             onTouchEnd: (ev) => {
+              let touch_delta_x = Math.abs(ev.changedTouches[0].clientX - touch_start_x.current);
+              let touch_delta_y = Math.abs(ev.changedTouches[0].clientY - touch_start_y.current);
+
+              if (touch_delta_x > 10 || touch_delta_y > 10) {
+                return;
+              }
+            
               ev.preventDefault();
               ev.stopPropagation();
               props.on_click?.(ev as any);
